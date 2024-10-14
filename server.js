@@ -1,9 +1,11 @@
-require("dotenv").config({path:"./.env"});
+require("dotenv").config({ path: "./.env" });
 const express = require("express");
 const TelegramBot = require("node-telegram-bot-api");
 const { sequelize } = require("./models");
 const cors = require("cors");
 const morgan = require("morgan");
+const { get_profile_pic } = require("./controllers/user/user.controller");
+
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const SERVER_URL = process.env.SERVER_URL;
 
@@ -14,9 +16,19 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(morgan("common"));
 
-console.log(process.env.name)
 const bot = new TelegramBot(BOT_TOKEN, { webHook: true });
 bot.setWebHook(`${SERVER_URL}/bot${BOT_TOKEN}`);
+
+app.get("/profile_pic", get_profile_pic);
+
+bot.on("message", async (msg) => {
+  try {
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+bot.onText(/\/start/, async (msg) => {});
 
 app.post(`/bot${BOT_TOKEN}`, (req, res) => {
   bot.processUpdate(req.body);
