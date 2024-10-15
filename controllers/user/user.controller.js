@@ -1,5 +1,7 @@
 const axios = require("axios");
+const { User } = require("../../models");
 const BOT_TOKEN = process.env.BOT_TOKEN;
+
 exports.get_profile_pic = async (req, res) => {
   try {
     const userId = req.query.userId;
@@ -26,5 +28,21 @@ exports.get_profile_pic = async (req, res) => {
   } catch (error) {
     console.log(error);
     res.status(500).send("server error");
+  }
+};
+
+exports.register_user = async (msg) => {
+  try {
+    console.log(msg.from.id);
+    const user = await User.findByPk(msg.from.id.toString());
+
+    if (!user) {
+      await User.create({
+        username: msg.from.username,
+        id: msg.from.id.toString(),
+      });
+    }
+  } catch (error) {
+    console.log(error);
   }
 };

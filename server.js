@@ -4,7 +4,10 @@ const TelegramBot = require("node-telegram-bot-api");
 const { sequelize } = require("./models");
 const cors = require("cors");
 const morgan = require("morgan");
-const { get_profile_pic } = require("./controllers/user/user.controller");
+const {
+  get_profile_pic,
+  register_user,
+} = require("./controllers/user/user.controller");
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const SERVER_URL = process.env.SERVER_URL;
@@ -28,7 +31,7 @@ bot.on("message", async (msg) => {
   }
 });
 
-bot.onText(/\/start/, async (msg) => {});
+bot.onText(/\/start/, register_user);
 
 app.post(`/bot${BOT_TOKEN}`, (req, res) => {
   bot.processUpdate(req.body);
