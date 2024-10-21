@@ -1,4 +1,5 @@
 require("dotenv").config({ path: "./.env" });
+const cron = require("node-cron");
 const express = require("express");
 const TelegramBot = require("node-telegram-bot-api");
 const { sequelize } = require("./models");
@@ -19,16 +20,30 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(morgan("common"));
 
-const bot = new TelegramBot(BOT_TOKEN, { webHook: true });
+// Extend the TelegramBot class to customize behavior
+class CustomTelegramBot extends TelegramBot {
+  // Override the request method
+  _request(path, options = {}) {
+    // Modify the API URL to append /test to the path
+    const testPath = `test/${path}`;
+    return super._request(testPath, options);
+  }
+}
+
+const bot =
+  process.env.NODE_ENV === "production"
+    ? new TelegramBot(BOT_TOKEN, {
+        webhook: true,
+      })
+    : new CustomTelegramBot(BOT_TOKEN, {
+        webHook: true,
+      });
 bot.setWebHook(`${SERVER_URL}/bot${BOT_TOKEN}`);
 
 app.get("/profile_pic", get_profile_pic);
 
 bot.on("message", async (msg) => {
-  try {
-  } catch (error) {
-    console.log(error);
-  }
+  console.log(msg);
 });
 
 bot.onText(/\/start/, register_user);
@@ -45,6 +60,21 @@ bot.on("polling_error", (error) => {
 bot.on("webhook_error", (error) => {
   console.log("Webhook error:", error); // Log webhook errors
 });
+
+// Schedule the cron job for 12 AM UTC every day
+cron.schedule("0 0 * * *", () => {}, {
+  timezone: "UTC", // Ensure the timezone is set to UTC
+});
+
+// cron.schedule(
+//   "*/2 * * * * *",
+//   () => {
+//     console.log("Done");
+//   },
+//   {
+//     timezone: "UTC",
+//   }
+// );
 
 app.get("/", (_, res) => {
   res.status(200).send("server running successfully");
