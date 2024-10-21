@@ -1,0 +1,222 @@
+[
+  {
+    "type": "impl",
+    "name": "PredictionImpl",
+    "interface_name": "contract::IPrediction"
+  },
+  {
+    "type": "struct",
+    "name": "core::byte_array::ByteArray",
+    "members": [
+      {
+        "name": "data",
+        "type": "core::array::Array::<core::bytes_31::bytes31>"
+      },
+      { "name": "pending_word", "type": "core::felt252" },
+      { "name": "pending_word_len", "type": "core::integer::u32" }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "core::integer::u256",
+    "members": [
+      { "name": "low", "type": "core::integer::u128" },
+      { "name": "high", "type": "core::integer::u128" }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "contract::Leaderboard",
+    "members": [
+      { "name": "user", "type": "core::byte_array::ByteArray" },
+      { "name": "total_score", "type": "core::integer::u256" }
+    ]
+  },
+  {
+    "type": "enum",
+    "name": "core::bool",
+    "variants": [
+      { "name": "False", "type": "()" },
+      { "name": "True", "type": "()" }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "contract::Match",
+    "members": [
+      { "name": "inputed", "type": "core::bool" },
+      { "name": "id", "type": "core::felt252" },
+      { "name": "timestamp", "type": "core::integer::u64" },
+      { "name": "round", "type": "core::integer::u256" }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "contract::Score",
+    "members": [
+      { "name": "inputed", "type": "core::bool" },
+      { "name": "match_id", "type": "core::felt252" },
+      { "name": "home", "type": "core::integer::u256" },
+      { "name": "away", "type": "core::integer::u256" }
+    ]
+  },
+  {
+    "type": "interface",
+    "name": "contract::IPrediction",
+    "items": [
+      {
+        "type": "function",
+        "name": "register_user",
+        "inputs": [
+          { "name": "id", "type": "core::felt252" },
+          { "name": "details", "type": "core::byte_array::ByteArray" }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "get_user",
+        "inputs": [{ "name": "id", "type": "core::felt252" }],
+        "outputs": [{ "type": "core::byte_array::ByteArray" }],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "upgrade",
+        "inputs": [
+          {
+            "name": "impl_hash",
+            "type": "core::starknet::class_hash::ClassHash"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "get_version",
+        "inputs": [],
+        "outputs": [{ "type": "core::integer::u256" }],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_leaderboard_by_round",
+        "inputs": [
+          { "name": "start_index", "type": "core::integer::u256" },
+          { "name": "size", "type": "core::integer::u256" },
+          { "name": "round", "type": "core::integer::u256" }
+        ],
+        "outputs": [{ "type": "core::array::Array::<contract::Leaderboard>" }],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_leaderboard",
+        "inputs": [
+          { "name": "start_index", "type": "core::integer::u256" },
+          { "name": "size", "type": "core::integer::u256" }
+        ],
+        "outputs": [{ "type": "core::array::Array::<contract::Leaderboard>" }],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "make_prediction",
+        "inputs": [
+          { "name": "match_id", "type": "core::felt252" },
+          { "name": "home", "type": "core::integer::u256" },
+          { "name": "away", "type": "core::integer::u256" }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "register_matches",
+        "inputs": [
+          {
+            "name": "matches",
+            "type": "core::array::Array::<contract::Match>"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "set_scores",
+        "inputs": [
+          {
+            "name": "scores",
+            "type": "core::array::Array::<contract::Score>"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "get_prediction_score",
+        "inputs": [
+          { "name": "round", "type": "core::integer::u256" },
+          {
+            "name": "user",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [{ "type": "core::array::Array::<contract::Score>" }],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_predictors",
+        "inputs": [{ "name": "round", "type": "core::integer::u256" }],
+        "outputs": [{ "type": "core::array::Array::<core::felt252>" }],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_current_round",
+        "inputs": [],
+        "outputs": [{ "type": "core::integer::u256" }],
+        "state_mutability": "view"
+      }
+    ]
+  },
+  {
+    "type": "constructor",
+    "name": "constructor",
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "core::starknet::contract_address::ContractAddress"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "contract::Prediction::Upgraded",
+    "kind": "struct",
+    "members": [
+      {
+        "name": "implementation",
+        "type": "core::starknet::class_hash::ClassHash",
+        "kind": "data"
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "contract::Prediction::Event",
+    "kind": "enum",
+    "variants": [
+      {
+        "name": "Upgraded",
+        "type": "contract::Prediction::Upgraded",
+        "kind": "nested"
+      }
+    ]
+  }
+]
