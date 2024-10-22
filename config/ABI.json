@@ -158,7 +158,7 @@
       },
       {
         "type": "function",
-        "name": "get_prediction_score",
+        "name": "get_user_predictions",
         "inputs": [
           { "name": "round", "type": "core::integer::u256" },
           {
@@ -171,9 +171,9 @@
       },
       {
         "type": "function",
-        "name": "get_predictors",
+        "name": "get_match_scores",
         "inputs": [{ "name": "round", "type": "core::integer::u256" }],
-        "outputs": [{ "type": "core::array::Array::<core::felt252>" }],
+        "outputs": [{ "type": "core::array::Array::<contract::Score>" }],
         "state_mutability": "view"
       },
       {

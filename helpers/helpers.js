@@ -1,8 +1,13 @@
 exports.parse_data_into_table_structure = (data, message) => {
   let table = "";
+  // console.log(message);
+  // console.log(data, typeof message);
   // Add message at the top if provided
   if (message) {
-    table += message + "\n\n"; // Add a new line after the message for spacing
+    table +=
+      typeof message === "object"
+        ? JSON.stringify(message, null, 2)
+        : message + "\n\n"; // Add a new line after the message for spacing
   }
   if (Array.isArray(data)) {
     if (data.length === 0) {
@@ -12,7 +17,7 @@ exports.parse_data_into_table_structure = (data, message) => {
     const headers = Object.keys(data[0]);
 
     // Prepare the header row
-    table = headers.join(" | ") + "\n";
+    table += headers.join(" | ") + "\n";
     table += "-".repeat(table.length) + "\n"; // Add a separator line
 
     // Add each row of data
@@ -23,9 +28,10 @@ exports.parse_data_into_table_structure = (data, message) => {
   } else if (typeof data === "object" && data !== null) {
     // Handle the case where data is a single object
     const headers = Object.keys(data);
+    // console.log(table);
 
     // Prepare the header row
-    table = headers.join(" | ") + "\n";
+    table += headers.join(" | ") + "\n";
     table += "-".repeat(table.length) + "\n"; // Add a separator line
 
     // Prepare the data row

@@ -12,6 +12,7 @@ const {
 const {
   set_next_matches,
   set_scores,
+  get_matches,
 } = require("./controllers/match/match.controller");
 const { parse_data_into_table_structure } = require("./helpers/helpers");
 const {
@@ -76,9 +77,13 @@ bot.on("webhook_error", (error) => {
 });
 
 function handle_callback(payload) {
-  bot.sendMessage(
-    ADMIN_CHAT_ID,
-    parse_data_into_table_structure(payload.data, payload.msg)
+  // bot.sendMessage(
+  //   ADMIN_CHAT_ID,
+  //   parse_data_into_table_structure(payload.data, payload.msg)
+  // );
+  console.log(
+    parse_data_into_table_structure(payload.data, payload.msg),
+    "payload"
   );
 }
 
@@ -86,16 +91,17 @@ async function handle_cron() {
   try {
     const current_round = await get_current_round();
     const converted_round = Number(current_round);
+
     if (converted_round > 0) {
       await set_scores(async (payload) => {
-        handle_callback();
+        handle_callback(payload);
         if (payload.success) {
           register_scores(payload.data, handle_callback);
         }
       }, converted_round);
     }
     await set_next_matches(async (payload) => {
-      handle_callback();
+      handle_callback(payload);
       if (payload.success) {
         await register_matches(payload.data, handle_callback);
       }
@@ -105,16 +111,11 @@ async function handle_cron() {
   }
 }
 
-cron.schedule(
-  "*/20 * * * * *",
-  async () => {
-    await handle_cron();
-    console.log("Done");
-  },
-  {
-    timezone: "UTC",
-  }
-);
+cron.schedule("*/1 * * * *", () => {
+  handle_cron();
+
+  console.log("running a task every two minutes");
+});
 
 // Schedule the cron job for 12 AM UTC every day
 cron.schedule("0 0 * * *", () => {}, {
@@ -124,6 +125,8 @@ cron.schedule("0 0 * * *", () => {}, {
 app.get("/", (_, res) => {
   res.status(200).send("server running successfully");
 });
+
+app.get("/matches", get_matches);
 
 const server = app;
 const PORT = process.env.PORT || 5000;
