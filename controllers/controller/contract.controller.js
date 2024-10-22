@@ -1,7 +1,7 @@
 const { RpcProvider, Contract, Account, ec, json } = require("starknet");
 const ABI = require("../../config/ABI.json");
 
-get_contract_instance = () => {
+const get_contract_instance = () => {
   const RPC_URL = process.env.RPC_URL;
   const PRIVATE_KEY = process.env.PRIVATE_KEY;
   const ACCOUNT_ADDRESS = process.env.ACCOUNT_ADDRESS;
@@ -14,7 +14,7 @@ get_contract_instance = () => {
   return contract;
 };
 
-exports.register_matches = async (matches, callback) => {
+const register_matches = async (matches, callback) => {
   try {
     const contract = get_contract_instance();
     if (!contract) {
@@ -24,9 +24,39 @@ exports.register_matches = async (matches, callback) => {
 
     const tx = await contract.register_matches(matches);
 
-    callback({ success: true, msg: "Matches registered", data: tx });
+    callback({ success: true, msg: "Matches registered", data: { tx } });
   } catch (error) {
-    console.log(error);
     callback({ success: false, msg: JSON.stringify(error), data: {} });
   }
+};
+
+const register_scores = async (scores, callback) => {
+  try {
+    const contract = get_contract_instance();
+    if (!contract) {
+      callback({ success: false, msg: "Contract instance not set", data: {} });
+      return;
+    }
+
+    const tx = await contract.set_scores(scores);
+
+    callback({ success: true, msg: "Scores set", data: { tx } });
+  } catch (error) {
+    callback({ success: false, msg: JSON.stringify(error), data: {} });
+  }
+};
+
+const get_current_round = async () => {
+  try {
+    const contract = get_contract_instance();
+    return await contract.get_current_round();
+  } catch (error) {
+    throw error;
+  }
+};
+
+module.exports = {
+  register_matches,
+  get_current_round,
+  register_scores,
 };

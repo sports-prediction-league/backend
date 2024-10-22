@@ -9,9 +9,23 @@ const {
   get_profile_pic,
   register_user,
 } = require("./controllers/user/user.controller");
+const {
+  set_next_matches,
+  set_scores,
+} = require("./controllers/match/match.controller");
+const { parse_data_into_table_structure } = require("./helpers/helpers");
+const {
+  register_matches,
+  get_current_round,
+  register_scores,
+} = require("./controllers/controller/contract.controller");
 
-const BOT_TOKEN = process.env.BOT_TOKEN;
+const BOT_TOKEN =
+  process.env.NODE_ENV === "production"
+    ? process.env.BOT_TOKEN
+    : process.env.TEST_BOT_TOKEN;
 const SERVER_URL = process.env.SERVER_URL;
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 
 const app = express();
 
@@ -61,27 +75,58 @@ bot.on("webhook_error", (error) => {
   console.log("Webhook error:", error); // Log webhook errors
 });
 
+function handle_callback(payload) {
+  bot.sendMessage(
+    ADMIN_CHAT_ID,
+    parse_data_into_table_structure(payload.data, payload.msg)
+  );
+}
+
+async function handle_cron() {
+  try {
+    const current_round = await get_current_round();
+    const converted_round = Number(current_round);
+    if (converted_round > 0) {
+      await set_scores(async (payload) => {
+        handle_callback();
+        if (payload.success) {
+          register_scores(payload.data, handle_callback);
+        }
+      }, converted_round);
+    }
+    await set_next_matches(async (payload) => {
+      handle_callback();
+      if (payload.success) {
+        await register_matches(payload.data, handle_callback);
+      }
+    }, converted_round);
+  } catch (error) {
+    handle_callback({ success: false, msg: JSON.stringify(error), data: {} });
+  }
+}
+
+cron.schedule(
+  "*/20 * * * * *",
+  async () => {
+    await handle_cron();
+    console.log("Done");
+  },
+  {
+    timezone: "UTC",
+  }
+);
+
 // Schedule the cron job for 12 AM UTC every day
 cron.schedule("0 0 * * *", () => {}, {
   timezone: "UTC", // Ensure the timezone is set to UTC
 });
-
-// cron.schedule(
-//   "*/2 * * * * *",
-//   () => {
-//     console.log("Done");
-//   },
-//   {
-//     timezone: "UTC",
-//   }
-// );
 
 app.get("/", (_, res) => {
   res.status(200).send("server running successfully");
 });
 
 const server = app;
-const PORT = 5000 || process.env.PORT;
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, async () => {
   await sequelize.authenticate();
   console.log("Connected to database");
