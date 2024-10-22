@@ -2,6 +2,172 @@ const axios = require("axios");
 const { Match } = require("../../models");
 const { cairo } = require("starknet");
 const { get_current_round } = require("../controller/contract.controller");
+const { Op } = require("sequelize");
+
+const groupByUTCHours = (
+  arr,
+  startHourUTC = 10,
+  endHourUTC = 21,
+  limit = 10
+) => {
+  const prioritizedTeamNames = [
+    "barcelona",
+    "real madrid",
+    "manchester united",
+    "liverpool",
+    "manchester city",
+    "paris saint-germain",
+    "bayern munich",
+    "juventus",
+    "chelsea",
+    "arsenal",
+    "ac milan",
+    "inter milan",
+    "tottenham hotspur",
+    "atletico madrid",
+    "borussia dortmund",
+    "ajax",
+    "napoli",
+    "roma",
+    "leicester city",
+    "leicester",
+    "rb leipzig",
+    "sevilla",
+    "lazio",
+    "benfica",
+    "porto",
+    "sporting cp",
+    "valencia",
+    "villarreal",
+    "real sociedad",
+    "wolverhampton wanderers",
+    "everton",
+    "west ham united",
+    "aston villa",
+    "monaco",
+    "lyon",
+    "marseille",
+    "real betis",
+    "fiorentina",
+    "atalanta",
+    "celtic",
+    "rangers",
+    "shakhtar donetsk",
+    "dynamo kyiv",
+    "zenit st. petersburg",
+    "cska moscow",
+    "spartak moscow",
+    "galatasaray",
+    "fenerbahce",
+    "besiktas",
+    "bayer leverkusen",
+    "schalke 04",
+    "hoffentlich",
+    "wolfsburg",
+    "eintracht frankfurt",
+    "lille",
+    "nice",
+    "red bull salzburg",
+    "anderlecht",
+    "club brugge",
+    "genk",
+    "basel",
+    "young boys",
+    "dinamo zagreb",
+    "olympiacos",
+    "panathinaikos",
+    "aek athens",
+    "braga",
+    "real salt lake",
+    "la galaxy",
+    "new york city fc",
+    "atlanta united",
+    "toronto fc",
+    "seattle sounders",
+    "orlando city",
+    "philadelphia union",
+    "portland timbers",
+    "new york red bulls",
+    "fc dallas",
+    "chicago fire",
+    "santos",
+    "flamengo",
+    "corinthians",
+    "palmeiras",
+    "gremio",
+    "boca juniors",
+    "river plate",
+    "san lorenzo",
+    "independiente",
+    "vasco da gama",
+    "internacional",
+    "cruzeiro",
+    "universidad de chile",
+    "colo-colo",
+    "america de cali",
+    "atletico nacional",
+    "pachuca",
+    "tigres uanl",
+    "monterrey",
+    "club america",
+    "cruz azul",
+    "chivas guadalajara",
+  ];
+  const groupedByHour = {};
+  const prioritizedItems = [];
+  const result = [];
+
+  // Group the objects by the UTC hour of their fixture date
+  for (const item of arr) {
+    const date = new Date(item.fixture.date); // Access the date field
+    const utcHours = date.getUTCHours();
+
+    // Prioritize items where the team names match any in the prioritizedTeamNames array
+    if (
+      prioritizedTeamNames.includes(item.teams.home.name.toLowerCase()) ||
+      prioritizedTeamNames.includes(item.teams.away.name.toLowerCase())
+    ) {
+      prioritizedItems.push(item); // Add to prioritized list regardless of time range
+    } else if (utcHours >= startHourUTC && utcHours < endHourUTC) {
+      // If this hour doesn't have a group yet, initialize it
+      if (!groupedByHour[utcHours]) {
+        groupedByHour[utcHours] = [];
+      }
+      groupedByHour[utcHours].push(item); // Push the entire object, not just the date
+    }
+  }
+
+  // Add prioritized items first, but limit the total results to the given limit
+  for (const item of prioritizedItems) {
+    result.push(item);
+    if (result.length === limit) {
+      return result; // Stop if we reach the limit
+    }
+  }
+
+  // Randomly pick items from each hour group until we have the limit
+  while (result.length < limit) {
+    for (const hour in groupedByHour) {
+      const matches = groupedByHour[hour];
+
+      // If there are still matches in this group, pick one
+      if (matches.length > 0) {
+        result.push(matches.shift()); // Remove the first match from the group and add to result
+
+        if (result.length === limit) {
+          break; // Stop when we reach the limit
+        }
+      }
+    }
+
+    // If we exhausted all groups and still don't have enough results, stop
+    if (Object.values(groupedByHour).every((matches) => matches.length === 0)) {
+      break;
+    }
+  }
+
+  return result;
+};
 
 const formatDateFromString = (dateString) => {
   const date = new Date(dateString);
@@ -34,23 +200,69 @@ async function get_api_matches(date) {
   }
 }
 
+const getFutureDays = (numOfDays, start_date) => {
+  const daysArray = [];
+  const today = start_date ? new Date(start_date) : new Date();
+
+  for (let i = 1; i <= numOfDays; i++) {
+    const futureDate = new Date(today);
+    futureDate.setDate(today.getDate() + i); // Add i days to today's date
+    daysArray.push(futureDate.toDateString()); // You can format this as you like
+  }
+
+  return daysArray;
+};
+
 exports.set_next_matches = async (callback, current_round) => {
   try {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
+    const last_match = await Match.findOne({
+      order: [["date", "DESC"]],
+    });
 
-    const response = await get_api_matches(tomorrow.toString());
+    const futureDays = last_match
+      ? getFutureDays(5, last_match.date)
+      : getFutureDays(5, null);
+    const [response1, response2, response3, response4, response5] =
+      await Promise.all([
+        get_api_matches(futureDays[0]),
+        get_api_matches(futureDays[1]),
+        get_api_matches(futureDays[2]),
+        get_api_matches(futureDays[3]),
+        get_api_matches(futureDays[4]),
+      ]);
+
+    const response = {
+      data: {
+        response: [
+          ...(response1.data.response?.length
+            ? groupByUTCHours(response1.data.response)
+            : []),
+          ...(response2.data.response?.length
+            ? groupByUTCHours(response2.data.response)
+            : []),
+          ...(response3.data.response?.length
+            ? groupByUTCHours(response3.data.response)
+            : []),
+          ...(response4.data.response?.length
+            ? groupByUTCHours(response4.data.response)
+            : []),
+          ...(response5.data.response?.length
+            ? response5.data.response.slice(-10)
+            : []),
+        ],
+      },
+    };
 
     let structure = [];
 
     if (response.data?.response?.length) {
-      for (let i = 0; i < response.data.response.length && i < 100; i++) {
+      for (let i = 0; i < response.data.response.length; i++) {
         const element = response.data.response[i];
         await Match.create({
           id: element.fixture.id.toString(),
           date: element.fixture.date,
           round: current_round + 1,
+          dateCompare: formatDateFromString(element.fixture.date),
           details: {
             fixture: element.fixture,
             league: element.league,
@@ -64,7 +276,7 @@ exports.set_next_matches = async (callback, current_round) => {
           timestamp: Math.floor(
             new Date(element.fixture.date).getTime() / 1000
           ),
-          round: cairo.uint256(1),
+          round: cairo.uint256(current_round + 1),
         });
       }
     }
@@ -75,11 +287,19 @@ exports.set_next_matches = async (callback, current_round) => {
   }
 };
 
-exports.set_scores = async (callback, current_round) => {
+exports.set_scores = async (callback) => {
   try {
+    // Calculate the start and end of yesterday
+    const startOfYesterday = new Date(today.setHours(0, 0, 0, 0) - 86400000); // Midnight of yesterday
+    const endOfYesterday = new Date(today.setHours(23, 59, 59, 999)); // End of yesterday
+
     const matches = await Match.findAll({
       where: {
-        round: current_round,
+        scored: false,
+        date: {
+          [Op.gte]: startOfYesterday, // Greater than or equal to the start of yesterday
+          [Op.lte]: endOfYesterday, // Less than or equal to the end of yesterday
+        },
       },
     });
 
@@ -143,24 +363,33 @@ exports.get_matches = async (req, res) => {
         },
       });
 
-      res
-        .status(200)
-        .send({ success: true, message: "Matches Fetched", data: matches });
+      res.status(200).send({
+        success: true,
+        message: "Matches Fetched",
+        data: { matches, current_round: round },
+      });
 
       return;
     }
 
-    const current_round = Number(await get_current_round());
+    const current_round = await get_current_round();
+
+    const converted_round = Number(current_round);
     const matches = await Match.findAndCountAll({
       where: {
-        round: current_round,
+        round: converted_round,
       },
     });
 
-    res
-      .status(200)
-      .send({ success: true, message: "Matches Fetched", data: matches });
+    res.status(200).send({
+      success: true,
+      message: "Matches Fetched",
+      data: { matches, current_round: converted_round },
+    });
   } catch (error) {
+    res
+      .status(500)
+      .send({ success: false, message: "Internal Server Error", data: {} });
     console.log(error);
   }
 };

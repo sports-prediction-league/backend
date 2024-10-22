@@ -98,7 +98,7 @@ async function handle_cron() {
         if (payload.success) {
           register_scores(payload.data, handle_callback);
         }
-      }, converted_round);
+      });
     }
     await set_next_matches(async (payload) => {
       handle_callback(payload);
