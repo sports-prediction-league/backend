@@ -30,7 +30,6 @@ const groupByUTCHours = (
     "napoli",
     "roma",
     "leicester city",
-    "leicester",
     "rb leipzig",
     "sevilla",
     "lazio",
@@ -124,8 +123,15 @@ const groupByUTCHours = (
 
     // Prioritize items where the team names match any in the prioritizedTeamNames array
     if (
-      prioritizedTeamNames.includes(item.teams.home.name.toLowerCase()) ||
-      prioritizedTeamNames.includes(item.teams.away.name.toLowerCase())
+      prioritizedTeamNames.some((team) =>
+        item?.teams?.home?.name?.toLowerCase()?.includes(team)
+      ) ||
+      prioritizedTeamNames.some((team) =>
+        item?.teams?.away?.name?.toLowerCase()?.includes(team)
+      )
+
+      // prioritizedTeamNames.includes(item.teams.home.name.toLowerCase()) ||
+      // prioritizedTeamNames.includes(item.teams.away.name.toLowerCase())
     ) {
       prioritizedItems.push(item); // Add to prioritized list regardless of time range
     } else if (utcHours >= startHourUTC && utcHours < endHourUTC) {
