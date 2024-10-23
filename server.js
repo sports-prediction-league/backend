@@ -8,6 +8,7 @@ const morgan = require("morgan");
 const {
   get_profile_pic,
   register_user,
+  get_leaderboard_images,
 } = require("./controllers/user/user.controller");
 const {
   set_next_matches,
@@ -56,6 +57,7 @@ const bot =
 bot.setWebHook(`${SERVER_URL}/bot${BOT_TOKEN}`);
 
 app.get("/profile_pic", get_profile_pic);
+app.get("/leaderboard_images", get_leaderboard_images);
 
 bot.on("message", async (msg) => {
   console.log(msg);
