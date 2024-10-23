@@ -111,11 +111,11 @@ async function handle_cron() {
   }
 }
 
-cron.schedule("*/1 * * * *", () => {
-  handle_cron();
+// cron.schedule("*/1 * * * *", () => {
+//   handle_cron();
 
-  console.log("running a task every two minutes");
-});
+//   console.log("running a task every two minutes");
+// });
 
 // Schedule the cron job for 12 AM UTC every day
 cron.schedule("0 0 * * *", () => {}, {

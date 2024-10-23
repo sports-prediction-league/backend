@@ -11,106 +11,38 @@ const groupByUTCHours = (
   limit = 10
 ) => {
   const prioritizedTeamNames = [
-    "barcelona",
-    "real madrid",
     "manchester united",
-    "liverpool",
-    "manchester city",
-    "paris saint-germain",
+    "real madrid",
+    "barcelona",
     "bayern munich",
+    "liverpool",
+    "paris saint-germain",
     "juventus",
     "chelsea",
+    "manchester city",
     "arsenal",
     "ac milan",
     "inter milan",
-    "tottenham hotspur",
     "atletico madrid",
+    "tottenham hotspur",
     "borussia dortmund",
     "ajax",
     "napoli",
-    "roma",
-    "leicester city",
-    "rb leipzig",
-    "sevilla",
-    "lazio",
+    "as roma",
     "benfica",
-    "porto",
-    "sporting cp",
+    "sevilla",
+    "leicester city",
     "valencia",
-    "villarreal",
-    "real sociedad",
-    "wolverhampton wanderers",
-    "everton",
-    "west ham united",
-    "aston villa",
-    "monaco",
     "lyon",
-    "marseille",
-    "real betis",
-    "fiorentina",
-    "atalanta",
-    "celtic",
-    "rangers",
-    "shakhtar donetsk",
-    "dynamo kyiv",
-    "zenit st. petersburg",
-    "cska moscow",
-    "spartak moscow",
-    "galatasaray",
-    "fenerbahce",
-    "besiktas",
-    "bayer leverkusen",
-    "schalke 04",
-    "hoffentlich",
+    "villarreal",
+    "everton",
+    "monaco",
+    "porto",
     "wolfsburg",
-    "eintracht frankfurt",
-    "lille",
-    "nice",
-    "red bull salzburg",
-    "anderlecht",
-    "club brugge",
-    "genk",
-    "basel",
-    "young boys",
-    "dinamo zagreb",
-    "olympiacos",
-    "panathinaikos",
-    "aek athens",
-    "braga",
-    "real salt lake",
-    "la galaxy",
-    "new york city fc",
-    "atlanta united",
-    "toronto fc",
-    "seattle sounders",
-    "orlando city",
-    "philadelphia union",
-    "portland timbers",
-    "new york red bulls",
-    "fc dallas",
-    "chicago fire",
-    "santos",
-    "flamengo",
-    "corinthians",
-    "palmeiras",
-    "gremio",
-    "boca juniors",
-    "river plate",
-    "san lorenzo",
-    "independiente",
-    "vasco da gama",
-    "internacional",
-    "cruzeiro",
-    "universidad de chile",
-    "colo-colo",
-    "america de cali",
-    "atletico nacional",
-    "pachuca",
-    "tigres uanl",
+    "aston villa",
+    "west ham united",
     "monterrey",
-    "club america",
-    "cruz azul",
-    "chivas guadalajara",
+    "roma",
   ];
   const groupedByHour = {};
   const prioritizedItems = [];
@@ -237,6 +169,8 @@ exports.set_next_matches = async (callback, current_round) => {
         get_api_matches(futureDays[4]),
       ]);
 
+    console.log(response1.data);
+
     const response = {
       data: {
         response: [
@@ -361,6 +295,15 @@ exports.set_scores = async (callback) => {
 
 exports.get_matches = async (req, res) => {
   try {
+    const current_round = await get_current_round();
+    const match = await Match.findOne({
+      order: [["date", "ASC"]],
+
+      where: {
+        scored: false,
+      },
+    });
+    const converted_round = Number(current_round);
     const { round } = req.query;
     if (round) {
       const matches = await Match.findAndCountAll({
@@ -372,25 +315,26 @@ exports.get_matches = async (req, res) => {
       res.status(200).send({
         success: true,
         message: "Matches Fetched",
-        data: { matches, current_round: round },
+        data: { matches, current_round: round, total_rounds: converted_round },
       });
 
       return;
     }
 
-    const current_round = await get_current_round();
-
-    const converted_round = Number(current_round);
     const matches = await Match.findAndCountAll({
       where: {
-        round: converted_round,
+        round: match?.round ?? converted_round,
       },
     });
 
     res.status(200).send({
       success: true,
       message: "Matches Fetched",
-      data: { matches, current_round: converted_round },
+      data: {
+        matches,
+        total_rounds: converted_round,
+        current_round: match?.round ?? 0,
+      },
     });
   } catch (error) {
     res

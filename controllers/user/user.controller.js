@@ -4,9 +4,9 @@ const BOT_TOKEN =
   process.env.NODE_ENV === "production"
     ? process.env.BOT_TOKEN
     : process.env.TEST_BOT_TOKEN;
-exports.get_profile_pic = async (req, res) => {
+
+const process_image = async (userId, type) => {
   try {
-    const userId = req.query.userId;
     const profilePhotosResponse = await axios.get(
       `https://api.telegram.org/bot${BOT_TOKEN}/getUserProfilePhotos?user_id=${userId}`
     );
@@ -22,11 +22,48 @@ exports.get_profile_pic = async (req, res) => {
       const photoResponse = await axios({
         url: `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`,
         method: "GET",
-        responseType: "stream", // Stream the file content
+        responseType: type, // Stream the file content
       });
-
-      photoResponse.data.pipe(res);
+      return photoResponse;
     }
+  } catch (error) {
+    throw error;
+  }
+};
+
+exports.get_profile_pic = async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    const photoResponse = await process_image(userId, "stream");
+    photoResponse.data.pipe(res);
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("server error");
+  }
+};
+
+exports.get_leaderboard_images = async (req, res) => {
+  try {
+    let response = [];
+
+    const users = await User.findAll({
+      order: [["createdAt", "ASC"]],
+    });
+
+    for (let i = 0; i < users.length; i++) {
+      const element = users[i];
+
+      const photoResponse = await process_image(element.id, "arraybuffer");
+      const base64 = Buffer.from(photoResponse.data, "binary").toString(
+        "base64"
+      );
+      response.push({
+        username: element.username,
+        image: base64,
+      });
+    }
+
+    res.status(200).send({ success: true, message: "Fetched", data: response });
   } catch (error) {
     console.log(error);
     res.status(500).send("server error");
