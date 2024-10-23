@@ -42,7 +42,7 @@ exports.get_profile_pic = async (req, res) => {
   }
 };
 
-exports.get_leaderboard_images = async (req, res) => {
+exports.get_leaderboard_images = async (_, res) => {
   try {
     let response = [];
 
@@ -78,6 +78,7 @@ exports.register_user = async (msg) => {
       await User.create({
         username: msg.from.username,
         id: msg.from.id.toString(),
+        chatId: msg.chat.id.toString(),
       });
     }
   } catch (error) {
