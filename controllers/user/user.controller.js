@@ -1,29 +1,36 @@
 const axios = require("axios");
 const { User } = require("../../models");
-const BOT_TOKEN =
-  process.env.NODE_ENV === "production"
-    ? process.env.BOT_TOKEN
-    : process.env.TEST_BOT_TOKEN;
+const is_production = process.env.NODE_ENV === "production";
+const BOT_TOKEN = is_production
+  ? process.env.BOT_TOKEN
+  : process.env.TEST_BOT_TOKEN;
 
 const process_image = async (userId, type) => {
   try {
     const profilePhotosResponse = await axios.get(
-      `https://api.telegram.org/bot${BOT_TOKEN}/getUserProfilePhotos?user_id=${userId}`
+      is_production
+        ? `https://api.telegram.org/bot${BOT_TOKEN}/getUserProfilePhotos?user_id=${userId}`
+        : `https://api.telegram.org/bot${BOT_TOKEN}/test/getUserProfilePhotos?user_id=${userId}`
     );
     if (profilePhotosResponse.data.result.total_count > 0) {
       const fileId = profilePhotosResponse.data.result.photos[0][0].file_id;
 
       const fileResponse = await axios.get(
-        `https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`
+        is_production
+          ? `https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`
+          : `https://api.telegram.org/bot${BOT_TOKEN}/test/getFile?file_id=${fileId}`
       );
 
       const filePath = fileResponse.data.result.file_path;
 
       const photoResponse = await axios({
-        url: `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`,
+        url: is_production
+          ? `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`
+          : `https://api.telegram.org/file/bot${BOT_TOKEN}/test/${filePath}`,
         method: "GET",
         responseType: type, // Stream the file content
       });
+
       return photoResponse;
     }
   } catch (error) {
