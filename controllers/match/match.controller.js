@@ -15,23 +15,31 @@ const groupByUTCHours = (
     "real madrid",
     "barcelona",
     "bayern munich",
+    "bayern",
     "liverpool",
     "paris saint-germain",
+    "paris",
     "juventus",
     "chelsea",
     "manchester city",
     "arsenal",
     "ac milan",
+    "ac",
     "inter milan",
+    "inter",
     "atletico madrid",
+    "atletico",
     "tottenham hotspur",
+    "tottenham",
     "borussia dortmund",
+    "dortmund",
     "ajax",
     "napoli",
     "as roma",
     "benfica",
     "sevilla",
     "leicester city",
+    "leicester",
     "valencia",
     "lyon",
     "villarreal",
@@ -40,7 +48,10 @@ const groupByUTCHours = (
     "porto",
     "wolfsburg",
     "aston villa",
+    "aston",
     "west ham united",
+    "west ham",
+    "full ham",
     "monterrey",
     "roma",
   ];
@@ -55,18 +66,20 @@ const groupByUTCHours = (
 
     // Prioritize items where the team names match any in the prioritizedTeamNames array
     if (
-      prioritizedTeamNames.some((team) =>
-        item?.teams?.home?.name?.toLowerCase()?.includes(team)
+      (prioritizedTeamNames.includes(
+        item?.teams?.home?.name?.toLowerCase()?.trim()
       ) ||
-      prioritizedTeamNames.some((team) =>
-        item?.teams?.away?.name?.toLowerCase()?.includes(team)
-      )
-
-      // prioritizedTeamNames.includes(item.teams.home.name.toLowerCase()) ||
-      // prioritizedTeamNames.includes(item.teams.away.name.toLowerCase())
+        prioritizedTeamNames.includes(
+          item?.teams?.away?.name?.toLowerCase()?.trim()
+        )) &&
+      item?.fixture?.status?.short === "NS"
     ) {
       prioritizedItems.push(item); // Add to prioritized list regardless of time range
-    } else if (utcHours >= startHourUTC && utcHours < endHourUTC) {
+    } else if (
+      utcHours >= startHourUTC &&
+      utcHours < endHourUTC &&
+      item?.fixture?.status?.short === "NS"
+    ) {
       // If this hour doesn't have a group yet, initialize it
       if (!groupedByHour[utcHours]) {
         groupedByHour[utcHours] = [];
@@ -168,8 +181,6 @@ exports.set_next_matches = async (callback, current_round) => {
         get_api_matches(futureDays[3]),
         get_api_matches(futureDays[4]),
       ]);
-
-    console.log(response1.data);
 
     const response = {
       data: {
@@ -307,6 +318,8 @@ exports.get_matches = async (req, res) => {
     const { round } = req.query;
     if (round) {
       const matches = await Match.findAndCountAll({
+        order: [["date", "ASC"]],
+
         where: {
           round: round,
         },
@@ -322,6 +335,8 @@ exports.get_matches = async (req, res) => {
     }
 
     const matches = await Match.findAndCountAll({
+      order: [["date", "ASC"]],
+
       where: {
         round: match?.round ?? converted_round,
       },
