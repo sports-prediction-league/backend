@@ -109,6 +109,7 @@ async function handle_cron() {
       }
     }, converted_round);
   } catch (error) {
+    console.log(error);
     handle_callback({ success: false, msg: JSON.stringify(error), data: {} });
   }
 }
@@ -120,9 +121,9 @@ async function handle_cron() {
 // });
 
 // Schedule the cron job for 12 AM UTC every day
-cron.schedule("0 0 * * *", () => {}, {
-  timezone: "UTC", // Ensure the timezone is set to UTC
-});
+// cron.schedule("0 0 * * *", () => {}, {
+//   timezone: "UTC", // Ensure the timezone is set to UTC
+// });
 
 app.get("/", (_, res) => {
   res.status(200).send("server running successfully");

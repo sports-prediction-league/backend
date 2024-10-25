@@ -241,8 +241,14 @@ exports.set_next_matches = async (callback, current_round) => {
 exports.set_scores = async (callback) => {
   try {
     // Calculate the start and end of yesterday
-    const startOfYesterday = new Date(today.setHours(0, 0, 0, 0) - 86400000); // Midnight of yesterday
-    const endOfYesterday = new Date(today.setHours(23, 59, 59, 999)); // End of yesterday
+    const today = new Date();
+    const startOfYesterday = new Date(today); // Create a new instance for the start of yesterday
+    startOfYesterday.setHours(0, 0, 0, 0);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1); // Move it to the previous day
+
+    const endOfYesterday = new Date(today); // Create another instance for the end of yesterday
+    endOfYesterday.setHours(23, 59, 59, 999);
+    endOfYesterday.setDate(endOfYesterday.getDate() - 1); // Move it to the previous day
 
     const matches = await Match.findAll({
       where: {
@@ -254,50 +260,41 @@ exports.set_scores = async (callback) => {
       },
     });
 
-    let broken = false;
     let structure = [];
 
     if (matches.length) {
-      const match = matches[0];
-      const response = await get_api_matches(match.date.toString());
-      for (let i = 0; i < response.data.response.length && i < 100; i++) {
-        const element = response.data.response[i];
-        const _match = matches[i];
+      const response = await get_api_matches(matches[0].date.toString());
+      const api_matches = response.data?.response ?? [];
+      for (let i = 0; i < matches.length; i++) {
+        const match = matches[i];
 
         if (
-          element.fixture.id.toString().trim() !== _match.id.toString().trim()
+          Date.now() / 1000 >=
+          Math.floor(new Date(match.date).getTime() / 1000) + 5400
         ) {
-          await callback({ success: false, msg: "Data corrupted", data: {} });
-          broken = true;
-          break;
-        } else {
-          if (
-            Date.now() / 1000 <
-            Math.floor(new Date(_match.date).getTime() / 1000) + 5400
-          ) {
-            callback({ success: false, msg: "Match not ended", data: {} });
-            broken = true;
-            break;
-          } else {
-            await _match.update({
+          const find = api_matches.find(
+            (fd) =>
+              fd.fixture.id.toString().trim() === match.id.toString().trim()
+          );
+          if (find) {
+            await match.update({
               scored: true,
               details: {
-                ..._match.details,
-                goals: element.goals,
+                ...match.details,
+                goals: find.goals,
               },
             });
 
             structure.push({
               inputed: true,
-              match_id: _match.id.toString().trim(),
-              home: Number(element?.goals?.home ?? 0),
-              away: Number(element?.goals?.away ?? 0),
+              match_id: match.id.toString().trim(),
+              home: Number(find?.goals?.home ?? 0),
+              away: Number(find?.goals?.away ?? 0),
             });
           }
         }
       }
     }
-    if (broken) return;
     await callback({ success: true, msg: "Scored pulled", data: structure });
   } catch (error) {
     await callback({ success: false, msg: error, data: {} });

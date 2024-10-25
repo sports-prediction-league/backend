@@ -59,15 +59,16 @@ exports.get_leaderboard_images = async (_, res) => {
 
     for (let i = 0; i < users.length; i++) {
       const element = users[i];
-
       const photoResponse = await process_image(element.id, "arraybuffer");
-      const base64 = Buffer.from(photoResponse.data, "binary").toString(
-        "base64"
-      );
-      response.push({
-        username: element.username,
-        image: base64,
-      });
+      if (photoResponse) {
+        const base64 = Buffer.from(photoResponse.data, "binary").toString(
+          "base64"
+        );
+        response.push({
+          username: element.username,
+          image: base64,
+        });
+      }
     }
 
     res.status(200).send({ success: true, message: "Fetched", data: response });
