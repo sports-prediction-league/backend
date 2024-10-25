@@ -13,6 +13,10 @@ module.exports = {
         type: DataTypes.STRING,
         allowNull: false,
       },
+      chatId: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
       createdAt: {
         allowNull: false,
         type: DataTypes.DATE,

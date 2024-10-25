@@ -8,6 +8,7 @@ const morgan = require("morgan");
 const {
   get_profile_pic,
   register_user,
+  get_leaderboard_images,
 } = require("./controllers/user/user.controller");
 const {
   set_next_matches,
@@ -56,6 +57,7 @@ const bot =
 bot.setWebHook(`${SERVER_URL}/bot${BOT_TOKEN}`);
 
 app.get("/profile_pic", get_profile_pic);
+app.get("/leaderboard_images", get_leaderboard_images);
 
 bot.on("message", async (msg) => {
   console.log(msg);
@@ -107,20 +109,21 @@ async function handle_cron() {
       }
     }, converted_round);
   } catch (error) {
+    console.log(error);
     handle_callback({ success: false, msg: JSON.stringify(error), data: {} });
   }
 }
 
-cron.schedule("*/1 * * * *", () => {
-  handle_cron();
+// cron.schedule("*/1 * * * *", () => {
+//   handle_cron();
 
-  console.log("running a task every two minutes");
-});
+//   console.log("running a task every two minutes");
+// });
 
 // Schedule the cron job for 12 AM UTC every day
-cron.schedule("0 0 * * *", () => {}, {
-  timezone: "UTC", // Ensure the timezone is set to UTC
-});
+// cron.schedule("0 0 * * *", () => {}, {
+//   timezone: "UTC", // Ensure the timezone is set to UTC
+// });
 
 app.get("/", (_, res) => {
   res.status(200).send("server running successfully");

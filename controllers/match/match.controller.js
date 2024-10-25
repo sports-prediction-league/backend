@@ -11,107 +11,49 @@ const groupByUTCHours = (
   limit = 10
 ) => {
   const prioritizedTeamNames = [
-    "barcelona",
-    "real madrid",
     "manchester united",
-    "liverpool",
-    "manchester city",
-    "paris saint-germain",
+    "real madrid",
+    "barcelona",
     "bayern munich",
+    "bayern",
+    "liverpool",
+    "paris saint-germain",
+    "paris",
     "juventus",
     "chelsea",
+    "manchester city",
     "arsenal",
     "ac milan",
+    "ac",
     "inter milan",
-    "tottenham hotspur",
+    "inter",
     "atletico madrid",
+    "atletico",
+    "tottenham hotspur",
+    "tottenham",
     "borussia dortmund",
+    "dortmund",
     "ajax",
     "napoli",
-    "roma",
+    "as roma",
+    "benfica",
+    "sevilla",
     "leicester city",
     "leicester",
-    "rb leipzig",
-    "sevilla",
-    "lazio",
-    "benfica",
-    "porto",
-    "sporting cp",
     "valencia",
-    "villarreal",
-    "real sociedad",
-    "wolverhampton wanderers",
-    "everton",
-    "west ham united",
-    "aston villa",
-    "monaco",
     "lyon",
-    "marseille",
-    "real betis",
-    "fiorentina",
-    "atalanta",
-    "celtic",
-    "rangers",
-    "shakhtar donetsk",
-    "dynamo kyiv",
-    "zenit st. petersburg",
-    "cska moscow",
-    "spartak moscow",
-    "galatasaray",
-    "fenerbahce",
-    "besiktas",
-    "bayer leverkusen",
-    "schalke 04",
-    "hoffentlich",
+    "villarreal",
+    "everton",
+    "monaco",
+    "porto",
     "wolfsburg",
-    "eintracht frankfurt",
-    "lille",
-    "nice",
-    "red bull salzburg",
-    "anderlecht",
-    "club brugge",
-    "genk",
-    "basel",
-    "young boys",
-    "dinamo zagreb",
-    "olympiacos",
-    "panathinaikos",
-    "aek athens",
-    "braga",
-    "real salt lake",
-    "la galaxy",
-    "new york city fc",
-    "atlanta united",
-    "toronto fc",
-    "seattle sounders",
-    "orlando city",
-    "philadelphia union",
-    "portland timbers",
-    "new york red bulls",
-    "fc dallas",
-    "chicago fire",
-    "santos",
-    "flamengo",
-    "corinthians",
-    "palmeiras",
-    "gremio",
-    "boca juniors",
-    "river plate",
-    "san lorenzo",
-    "independiente",
-    "vasco da gama",
-    "internacional",
-    "cruzeiro",
-    "universidad de chile",
-    "colo-colo",
-    "america de cali",
-    "atletico nacional",
-    "pachuca",
-    "tigres uanl",
+    "aston villa",
+    "aston",
+    "west ham united",
+    "west ham",
+    "full ham",
     "monterrey",
-    "club america",
-    "cruz azul",
-    "chivas guadalajara",
+    "roma",
   ];
   const groupedByHour = {};
   const prioritizedItems = [];
@@ -124,11 +66,20 @@ const groupByUTCHours = (
 
     // Prioritize items where the team names match any in the prioritizedTeamNames array
     if (
-      prioritizedTeamNames.includes(item.teams.home.name.toLowerCase()) ||
-      prioritizedTeamNames.includes(item.teams.away.name.toLowerCase())
+      (prioritizedTeamNames.includes(
+        item?.teams?.home?.name?.toLowerCase()?.trim()
+      ) ||
+        prioritizedTeamNames.includes(
+          item?.teams?.away?.name?.toLowerCase()?.trim()
+        )) &&
+      item?.fixture?.status?.short === "NS"
     ) {
       prioritizedItems.push(item); // Add to prioritized list regardless of time range
-    } else if (utcHours >= startHourUTC && utcHours < endHourUTC) {
+    } else if (
+      utcHours >= startHourUTC &&
+      utcHours < endHourUTC &&
+      item?.fixture?.status?.short === "NS"
+    ) {
       // If this hour doesn't have a group yet, initialize it
       if (!groupedByHour[utcHours]) {
         groupedByHour[utcHours] = [];
@@ -290,8 +241,14 @@ exports.set_next_matches = async (callback, current_round) => {
 exports.set_scores = async (callback) => {
   try {
     // Calculate the start and end of yesterday
-    const startOfYesterday = new Date(today.setHours(0, 0, 0, 0) - 86400000); // Midnight of yesterday
-    const endOfYesterday = new Date(today.setHours(23, 59, 59, 999)); // End of yesterday
+    const today = new Date();
+    const startOfYesterday = new Date(today); // Create a new instance for the start of yesterday
+    startOfYesterday.setHours(0, 0, 0, 0);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1); // Move it to the previous day
+
+    const endOfYesterday = new Date(today); // Create another instance for the end of yesterday
+    endOfYesterday.setHours(23, 59, 59, 999);
+    endOfYesterday.setDate(endOfYesterday.getDate() - 1); // Move it to the previous day
 
     const matches = await Match.findAll({
       where: {
@@ -303,50 +260,41 @@ exports.set_scores = async (callback) => {
       },
     });
 
-    let broken = false;
     let structure = [];
 
     if (matches.length) {
-      const match = matches[0];
-      const response = await get_api_matches(match.date.toString());
-      for (let i = 0; i < response.data.response.length && i < 100; i++) {
-        const element = response.data.response[i];
-        const _match = matches[i];
+      const response = await get_api_matches(matches[0].date.toString());
+      const api_matches = response.data?.response ?? [];
+      for (let i = 0; i < matches.length; i++) {
+        const match = matches[i];
 
         if (
-          element.fixture.id.toString().trim() !== _match.id.toString().trim()
+          Date.now() / 1000 >=
+          Math.floor(new Date(match.date).getTime() / 1000) + 5400
         ) {
-          await callback({ success: false, msg: "Data corrupted", data: {} });
-          broken = true;
-          break;
-        } else {
-          if (
-            Date.now() / 1000 <
-            Math.floor(new Date(_match.date).getTime() / 1000) + 5400
-          ) {
-            callback({ success: false, msg: "Match not ended", data: {} });
-            broken = true;
-            break;
-          } else {
-            await _match.update({
+          const find = api_matches.find(
+            (fd) =>
+              fd.fixture.id.toString().trim() === match.id.toString().trim()
+          );
+          if (find) {
+            await match.update({
               scored: true,
               details: {
-                ..._match.details,
-                goals: element.goals,
+                ...match.details,
+                goals: find.goals,
               },
             });
 
             structure.push({
               inputed: true,
-              match_id: _match.id.toString().trim(),
-              home: Number(element?.goals?.home ?? 0),
-              away: Number(element?.goals?.away ?? 0),
+              match_id: match.id.toString().trim(),
+              home: Number(find?.goals?.home ?? 0),
+              away: Number(find?.goals?.away ?? 0),
             });
           }
         }
       }
     }
-    if (broken) return;
     await callback({ success: true, msg: "Scored pulled", data: structure });
   } catch (error) {
     await callback({ success: false, msg: error, data: {} });
@@ -355,9 +303,20 @@ exports.set_scores = async (callback) => {
 
 exports.get_matches = async (req, res) => {
   try {
+    const current_round = await get_current_round();
+    const match = await Match.findOne({
+      order: [["date", "ASC"]],
+
+      where: {
+        scored: false,
+      },
+    });
+    const converted_round = Number(current_round);
     const { round } = req.query;
     if (round) {
       const matches = await Match.findAndCountAll({
+        order: [["date", "ASC"]],
+
         where: {
           round: round,
         },
@@ -366,25 +325,28 @@ exports.get_matches = async (req, res) => {
       res.status(200).send({
         success: true,
         message: "Matches Fetched",
-        data: { matches, current_round: round },
+        data: { matches, current_round: round, total_rounds: converted_round },
       });
 
       return;
     }
 
-    const current_round = await get_current_round();
-
-    const converted_round = Number(current_round);
     const matches = await Match.findAndCountAll({
+      order: [["date", "ASC"]],
+
       where: {
-        round: converted_round,
+        round: match?.round ?? converted_round,
       },
     });
 
     res.status(200).send({
       success: true,
       message: "Matches Fetched",
-      data: { matches, current_round: converted_round },
+      data: {
+        matches,
+        total_rounds: converted_round,
+        current_round: match?.round ?? 0,
+      },
     });
   } catch (error) {
     res
