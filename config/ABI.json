@@ -49,6 +49,14 @@
     ]
   },
   {
+    "type": "enum",
+    "name": "core::option::Option::<contract::Leaderboard>",
+    "variants": [
+      { "name": "Some", "type": "contract::Leaderboard" },
+      { "name": "None", "type": "()" }
+    ]
+  },
+  {
     "type": "interface",
     "name": "contract::IPrediction",
     "items": [
@@ -193,6 +201,22 @@
           }
         ],
         "outputs": [{ "type": "core::bool" }],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_user_total_scores",
+        "inputs": [{ "name": "user_id", "type": "core::felt252" }],
+        "outputs": [{ "type": "core::integer::u256" }],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_first_position",
+        "inputs": [],
+        "outputs": [
+          { "type": "core::option::Option::<contract::Leaderboard>" }
+        ],
         "state_mutability": "view"
       }
     ]

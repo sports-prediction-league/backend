@@ -14,11 +14,12 @@ module.exports = {
     logging: false,
   },
   test: {
-    username: "root",
-    password: null,
-    database: "database_test",
-    host: "127.0.0.1",
-    dialect: "mysql",
+    username: DB_USERNAME,
+    password: DB_PASSWORD,
+    database: DB_USERNAME,
+    host: DB_HOST,
+    dialect: DB_DIALECT,
+    logging: false,
   },
   production: {
     username: DB_USERNAME,

@@ -10,8 +10,8 @@ The SPL (Sports Prediction League) Backend serves as the core engine for managin
 - **Current Round Fetch**: Exposes an API endpoint to retrieve matches by round, defaulting to the current round.
 - **Telegram Bot Integration**: Supports commands, notifications, and profile handling:
   - **Commands**:
-    - `/get_leaderboard`: Retrieves the leaderboard showing top users.
-    - `/current_points`: Displays the user’s current points.
+    - `/top`: Retrieves the leaderboard showing top user.
+    - `/my_points`: Displays the user’s current points.
   - **Notifications**:
     - Notifies users of newly added matches.
     - Updates users on score changes for completed matches.
@@ -24,7 +24,7 @@ The SPL (Sports Prediction League) Backend serves as the core engine for managin
 - **PostgreSQL**: Database for storing match data.
 - **Sequelize**: ORM for database operations.
 - **node-cron**: Scheduling library for automated tasks.
-- **starknetjs**: For interacting with the StarkNet smart contract.
+- **starknetjs**: For interacting with the starknet smart contract.
 - **Telegram Bot API**: Manages commands, sends notifications, and retrieves profile pictures to enhance user interaction.
 
 ## Endpoints

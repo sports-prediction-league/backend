@@ -15,11 +15,16 @@ const {
   set_scores,
   get_matches,
 } = require("./controllers/match/match.controller");
-const { parse_data_into_table_structure } = require("./helpers/helpers");
+const {
+  parse_data_into_table_structure,
+  feltToString,
+} = require("./helpers/helpers");
 const {
   register_matches,
   get_current_round,
   register_scores,
+  get_user_points,
+  get_first_position,
 } = require("./controllers/controller/contract.controller");
 
 const BOT_TOKEN =
@@ -60,10 +65,40 @@ app.get("/profile_pic", get_profile_pic);
 app.get("/leaderboard_images", get_leaderboard_images);
 
 bot.on("message", async (msg) => {
-  console.log(msg);
+  // console.log(msg);
 });
 
 bot.onText(/\/start/, register_user);
+bot.onText(/\/top/, async (msg) => {
+  try {
+    const response = await get_first_position(msg.from.id.toString());
+    if (response?.Some) {
+      const user = feltToString(response.Some.user);
+      const score = Number(response.Some.total_score);
+      bot.sendMessage(
+        msg.chat.id,
+        `${user} is leading with a total points of ${score}`
+      );
+    } else {
+      bot.sendMessage(msg.chat.id, "NO LEADERBOARD YET");
+    }
+    // console.log(value);
+  } catch (error) {
+    console.log(error);
+    bot.sendMessage(msg.chat.id, "AN ERROR OCCURED. PLS TRY AGAIN");
+  }
+});
+bot.onText(/\/my_points/, async (msg) => {
+  try {
+    const value = await get_user_points(msg.from.id.toString());
+    bot.sendMessage(
+      msg.chat.id,
+      `You have a total of ${Number(value)} points.`
+    );
+  } catch (error) {
+    bot.sendMessage(msg.chat.id, "AN ERROR OCCURED. PLS TRY AGAIN");
+  }
+});
 
 app.post(`/bot${BOT_TOKEN}`, (req, res) => {
   bot.processUpdate(req.body);

@@ -1,4 +1,4 @@
-const { RpcProvider, Contract, Account } = require("starknet");
+const { RpcProvider, Contract, Account, cairo } = require("starknet");
 const ABI = require("../../config/ABI.json");
 
 const get_contract_instance = () => {
@@ -58,8 +58,30 @@ const get_current_round = async () => {
   }
 };
 
+const get_user_points = async (id) => {
+  try {
+    const contract = get_contract_instance();
+    const points = await contract.get_user_total_scores(cairo.felt(id));
+    return points;
+  } catch (error) {
+    throw error;
+  }
+};
+
+const get_first_position = async () => {
+  try {
+    const contract = get_contract_instance();
+    const top = await contract.get_first_position();
+    return top;
+  } catch (error) {
+    throw error;
+  }
+};
+
 module.exports = {
   register_matches,
   get_current_round,
   register_scores,
+  get_first_position,
+  get_user_points,
 };
