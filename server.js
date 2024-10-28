@@ -245,9 +245,15 @@ bot.onText(/\/set_matches/, async (msg) => {
 // });
 
 // Schedule the cron job for 12 AM UTC every day
-// cron.schedule("0 0 * * *", () => {}, {
-//   timezone: "UTC", // Ensure the timezone is set to UTC
-// });
+cron.schedule(
+  "0 0 * * *",
+  async () => {
+    await handle_cron();
+  },
+  {
+    timezone: "UTC", // Ensure the timezone is set to UTC
+  }
+);
 
 app.get("/", (_, res) => {
   res.status(200).send("server running successfully");
