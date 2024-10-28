@@ -171,17 +171,17 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
     });
 
     // Get the current date
-    const today = new Date();
+    // const today = new Date();
 
-    // Create a new Date object for yesterday by subtracting one day (24 hours)
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 2);
+    // // Create a new Date object for yesterday by subtracting one day (24 hours)
+    // const yesterday = new Date(today);
+    // yesterday.setDate(today.getDate() - 2);
 
     // console.log("Yesterday's date:", yesterday);
 
     const futureDays = last_match
       ? getFutureDays(5, last_match.date)
-      : getFutureDays(5, yesterday.toString());
+      : getFutureDays(5, null);
     const [response1, response2, response3, response4, response5] =
       await Promise.all([
         get_api_matches(futureDays[0]),
