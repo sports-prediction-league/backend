@@ -164,15 +164,24 @@ const getFutureDays = (numOfDays, start_date) => {
   return daysArray;
 };
 
-exports.set_next_matches = async (callback, current_round) => {
+exports.set_next_matches = async (transaction, callback, current_round) => {
   try {
     const last_match = await Match.findOne({
       order: [["date", "DESC"]],
     });
 
+    // Get the current date
+    const today = new Date();
+
+    // Create a new Date object for yesterday by subtracting one day (24 hours)
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 2);
+
+    // console.log("Yesterday's date:", yesterday);
+
     const futureDays = last_match
       ? getFutureDays(5, last_match.date)
-      : getFutureDays(5, null);
+      : getFutureDays(5, yesterday.toString());
     const [response1, response2, response3, response4, response5] =
       await Promise.all([
         get_api_matches(futureDays[0]),
@@ -209,17 +218,20 @@ exports.set_next_matches = async (callback, current_round) => {
     if (response.data?.response?.length) {
       for (let i = 0; i < response.data.response.length; i++) {
         const element = response.data.response[i];
-        await Match.create({
-          id: element.fixture.id.toString(),
-          date: element.fixture.date,
-          round: current_round + 1,
-          dateCompare: formatDateFromString(element.fixture.date),
-          details: {
-            fixture: element.fixture,
-            league: element.league,
-            teams: element.teams,
+        await Match.create(
+          {
+            id: element.fixture.id.toString(),
+            date: element.fixture.date,
+            round: current_round + 1,
+            dateCompare: formatDateFromString(element.fixture.date),
+            details: {
+              fixture: element.fixture,
+              league: element.league,
+              teams: element.teams,
+            },
           },
-        });
+          { transaction }
+        );
 
         structure.push({
           inputed: true,
@@ -234,11 +246,12 @@ exports.set_next_matches = async (callback, current_round) => {
 
     callback({ success: true, msg: "Matches pulled", data: structure });
   } catch (error) {
-    callback({ success: false, msg: error, data: {} });
+    // await callback({ success: false, msg: error, data: {} });
+    throw error;
   }
 };
 
-exports.set_scores = async (callback) => {
+exports.set_scores = async (transaction, callback) => {
   try {
     // Calculate the start and end of yesterday
     const today = new Date();
@@ -254,7 +267,7 @@ exports.set_scores = async (callback) => {
       where: {
         scored: false,
         date: {
-          [Op.gte]: startOfYesterday, // Greater than or equal to the start of yesterday
+          // [Op.gte]: startOfYesterday, // Greater than or equal to the start of yesterday
           [Op.lte]: endOfYesterday, // Less than or equal to the end of yesterday
         },
       },
@@ -277,13 +290,16 @@ exports.set_scores = async (callback) => {
               fd.fixture.id.toString().trim() === match.id.toString().trim()
           );
           if (find) {
-            await match.update({
-              scored: true,
-              details: {
-                ...match.details,
-                goals: find.goals,
+            await match.update(
+              {
+                scored: true,
+                details: {
+                  ...match.details,
+                  goals: find.goals,
+                },
               },
-            });
+              { transaction }
+            );
 
             structure.push({
               inputed: true,
@@ -295,9 +311,12 @@ exports.set_scores = async (callback) => {
         }
       }
     }
+
+    console.log(structure);
     await callback({ success: true, msg: "Scored pulled", data: structure });
   } catch (error) {
-    await callback({ success: false, msg: error, data: {} });
+    // await callback({ success: false, msg: error, data: {} });
+    throw error;
   }
 };
 
