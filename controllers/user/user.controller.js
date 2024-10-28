@@ -2,8 +2,10 @@ const axios = require("axios");
 const { User } = require("../../models");
 const is_production = process.env.NODE_ENV === "production";
 const BOT_TOKEN = is_production
-  ? process.env.BOT_TOKEN
-  : process.env.TEST_BOT_TOKEN;
+  ? process.env.PROD_BOT_TOKEN
+  : process.env.NODE_ENV === "test"
+  ? process.env.TEST_BOT_TOKEN
+  : process.env.DEV_BOT_TOKEN;
 
 const process_image = async (userId, type) => {
   try {
@@ -42,10 +44,18 @@ exports.get_profile_pic = async (req, res) => {
   try {
     const userId = req.query.userId;
     const photoResponse = await process_image(userId, "stream");
-    photoResponse.data.pipe(res);
+    if (!photoResponse) {
+      res.status(500).send({
+        success: false,
+        message: "Invalid response data: Unable to pipe to response.",
+        data: {},
+      });
+      return;
+    }
+    photoResponse?.data.pipe(res);
   } catch (error) {
     console.log(error);
-    res.status(500).send("server error");
+    res.status(500).send({ success: false, message: "server error", data: {} });
   }
 };
 
@@ -74,7 +84,7 @@ exports.get_leaderboard_images = async (_, res) => {
     res.status(200).send({ success: true, message: "Fetched", data: response });
   } catch (error) {
     console.log(error);
-    res.status(500).send("server error");
+    res.status(500).send({ success: false, message: "server error", data: {} });
   }
 };
 
