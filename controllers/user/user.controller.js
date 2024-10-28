@@ -2,8 +2,10 @@ const axios = require("axios");
 const { User } = require("../../models");
 const is_production = process.env.NODE_ENV === "production";
 const BOT_TOKEN = is_production
-  ? process.env.BOT_TOKEN
-  : process.env.TEST_BOT_TOKEN;
+  ? process.env.PROD_BOT_TOKEN
+  : process.env.NODE_ENV === "test"
+  ? process.env.TEST_BOT_TOKEN
+  : process.env.DEV_BOT_TOKEN;
 
 const process_image = async (userId, type) => {
   try {
