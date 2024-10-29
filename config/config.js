@@ -25,7 +25,6 @@ module.exports = {
     logging: false,
     port: PORT,
     sslmode: "REQUIRED",
-    logging: false,
     ssl: true,
     dialectOptions: {
       ssl: true,
