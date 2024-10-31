@@ -75,17 +75,17 @@ const groupByUTCHours = (
       item?.fixture?.status?.short === "NS"
     ) {
       prioritizedItems.push(item); // Add to prioritized list regardless of time range
-    } // else if (
-    //   utcHours >= startHourUTC &&
-    //   utcHours < endHourUTC &&
-    //   item?.fixture?.status?.short === "NS"
-    // ) {
-    //   // If this hour doesn't have a group yet, initialize it
-    //   if (!groupedByHour[utcHours]) {
-    //     groupedByHour[utcHours] = [];
-    //   }
-    //   groupedByHour[utcHours].push(item); // Push the entire object, not just the date
-    // }
+    } else if (
+      utcHours >= startHourUTC &&
+      utcHours < endHourUTC &&
+      item?.fixture?.status?.short === "NS"
+    ) {
+      // If this hour doesn't have a group yet, initialize it
+      if (!groupedByHour[utcHours]) {
+        groupedByHour[utcHours] = [];
+      }
+      groupedByHour[utcHours].push(item); // Push the entire object, not just the date
+    }
   }
 
   // Add prioritized items first, but limit the total results to the given limit
@@ -97,25 +97,25 @@ const groupByUTCHours = (
   }
 
   // Randomly pick items from each hour group until we have the limit
-  // while (result.length < limit) {
-  //   for (const hour in groupedByHour) {
-  //     const matches = groupedByHour[hour];
+  while (result.length < limit) {
+    for (const hour in groupedByHour) {
+      const matches = groupedByHour[hour];
 
-  //     // If there are still matches in this group, pick one
-  //     if (matches.length > 0) {
-  //       result.push(matches.shift()); // Remove the first match from the group and add to result
+      // If there are still matches in this group, pick one
+      if (matches.length > 0) {
+        result.push(matches.shift()); // Remove the first match from the group and add to result
 
-  //       if (result.length === limit) {
-  //         break; // Stop when we reach the limit
-  //       }
-  //     }
-  //   }
+        if (result.length === limit) {
+          break; // Stop when we reach the limit
+        }
+      }
+    }
 
-  //   // If we exhausted all groups and still don't have enough results, stop
-  //   if (Object.values(groupedByHour).every((matches) => matches.length === 0)) {
-  //     break;
-  //   }
-  // }
+    // If we exhausted all groups and still don't have enough results, stop
+    if (Object.values(groupedByHour).every((matches) => matches.length === 0)) {
+      break;
+    }
+  }
 
   return result;
 };
@@ -254,21 +254,20 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
 exports.set_scores = async (transaction, callback) => {
   try {
     // Calculate the start and end of yesterday
-    const today = new Date();
-    const startOfYesterday = new Date(today); // Create a new instance for the start of yesterday
-    startOfYesterday.setHours(0, 0, 0, 0);
-    startOfYesterday.setDate(startOfYesterday.getDate() - 1); // Move it to the previous day
+    const now = new Date();
+    const yesterdayStart = new Date();
+    yesterdayStart.setDate(now.getDate() - 1);
+    yesterdayStart.setHours(0, 0, 0, 0); // Set to the start of the day
 
-    const endOfYesterday = new Date(today); // Create another instance for the end of yesterday
-    endOfYesterday.setHours(23, 59, 59, 999);
-    endOfYesterday.setDate(endOfYesterday.getDate() - 1); // Move it to the previous day
-
+    const yesterdayEnd = new Date();
+    yesterdayEnd.setDate(now.getDate() - 1);
+    yesterdayEnd.setHours(23, 59, 59, 999); // Set to the end of the day
     const matches = await Match.findAll({
       where: {
         scored: false,
         date: {
-          [Op.gte]: startOfYesterday, // Greater than or equal to the start of yesterday
-          [Op.lte]: endOfYesterday, // Less than or equal to the end of yesterday
+          [Op.between]: [yesterdayStart, yesterdayEnd], // Greater than or equal to the start of yesterday
+          // [Op.lte]: endOfYesterday, // Less than or equal to the end of yesterday
         },
       },
     });
