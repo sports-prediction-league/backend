@@ -254,21 +254,20 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
 exports.set_scores = async (transaction, callback) => {
   try {
     // Calculate the start and end of yesterday
-    const today = new Date();
-    const startOfYesterday = new Date(today); // Create a new instance for the start of yesterday
-    startOfYesterday.setHours(0, 0, 0, 0);
-    startOfYesterday.setDate(startOfYesterday.getDate() - 1); // Move it to the previous day
+    const now = new Date();
+    const yesterdayStart = new Date();
+    yesterdayStart.setDate(now.getDate() - 1);
+    yesterdayStart.setHours(0, 0, 0, 0); // Set to the start of the day
 
-    const endOfYesterday = new Date(today); // Create another instance for the end of yesterday
-    endOfYesterday.setHours(23, 59, 59, 999);
-    endOfYesterday.setDate(endOfYesterday.getDate() - 1); // Move it to the previous day
-
+    const yesterdayEnd = new Date();
+    yesterdayEnd.setDate(now.getDate() - 1);
+    yesterdayEnd.setHours(23, 59, 59, 999); // Set to the end of the day
     const matches = await Match.findAll({
       where: {
         scored: false,
         date: {
-          [Op.gte]: startOfYesterday, // Greater than or equal to the start of yesterday
-          [Op.lte]: endOfYesterday, // Less than or equal to the end of yesterday
+          [Op.between]: [yesterdayStart, yesterdayEnd], // Greater than or equal to the start of yesterday
+          // [Op.lte]: endOfYesterday, // Less than or equal to the end of yesterday
         },
       },
     });
