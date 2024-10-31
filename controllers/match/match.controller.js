@@ -267,7 +267,7 @@ exports.set_scores = async (transaction, callback) => {
       where: {
         scored: false,
         date: {
-          // [Op.gte]: startOfYesterday, // Greater than or equal to the start of yesterday
+          [Op.gte]: startOfYesterday, // Greater than or equal to the start of yesterday
           [Op.lte]: endOfYesterday, // Less than or equal to the end of yesterday
         },
       },
