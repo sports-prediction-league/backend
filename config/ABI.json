@@ -218,6 +218,18 @@
           { "type": "core::option::Option::<contract::Leaderboard>" }
         ],
         "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "make_bulk_prediction",
+        "inputs": [
+          {
+            "name": "predictions",
+            "type": "core::array::Array::<contract::Score>"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
       }
     ]
   },

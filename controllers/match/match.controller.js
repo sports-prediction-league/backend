@@ -275,6 +275,8 @@ exports.set_scores = async (transaction, callback) => {
 
     let structure = [];
 
+    console.log(matches);
+
     if (matches.length) {
       const response = await get_api_matches(matches[0].date.toString());
       const api_matches = response.data?.response ?? [];
@@ -307,9 +309,15 @@ exports.set_scores = async (transaction, callback) => {
               home: Number(find?.goals?.home ?? 0),
               away: Number(find?.goals?.away ?? 0),
             });
+          } else {
+            console.log("not found");
           }
+        } else {
+          console.log("not completed");
         }
       }
+    } else {
+      console.log("empty");
     }
 
     console.log(structure);
