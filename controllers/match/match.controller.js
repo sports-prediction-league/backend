@@ -75,17 +75,17 @@ const groupByUTCHours = (
       item?.fixture?.status?.short === "NS"
     ) {
       prioritizedItems.push(item); // Add to prioritized list regardless of time range
-    } else if (
-      utcHours >= startHourUTC &&
-      utcHours < endHourUTC &&
-      item?.fixture?.status?.short === "NS"
-    ) {
-      // If this hour doesn't have a group yet, initialize it
-      if (!groupedByHour[utcHours]) {
-        groupedByHour[utcHours] = [];
-      }
-      groupedByHour[utcHours].push(item); // Push the entire object, not just the date
-    }
+    } // else if (
+    //   utcHours >= startHourUTC &&
+    //   utcHours < endHourUTC &&
+    //   item?.fixture?.status?.short === "NS"
+    // ) {
+    //   // If this hour doesn't have a group yet, initialize it
+    //   if (!groupedByHour[utcHours]) {
+    //     groupedByHour[utcHours] = [];
+    //   }
+    //   groupedByHour[utcHours].push(item); // Push the entire object, not just the date
+    // }
   }
 
   // Add prioritized items first, but limit the total results to the given limit
@@ -97,25 +97,25 @@ const groupByUTCHours = (
   }
 
   // Randomly pick items from each hour group until we have the limit
-  while (result.length < limit) {
-    for (const hour in groupedByHour) {
-      const matches = groupedByHour[hour];
+  // while (result.length < limit) {
+  //   for (const hour in groupedByHour) {
+  //     const matches = groupedByHour[hour];
 
-      // If there are still matches in this group, pick one
-      if (matches.length > 0) {
-        result.push(matches.shift()); // Remove the first match from the group and add to result
+  //     // If there are still matches in this group, pick one
+  //     if (matches.length > 0) {
+  //       result.push(matches.shift()); // Remove the first match from the group and add to result
 
-        if (result.length === limit) {
-          break; // Stop when we reach the limit
-        }
-      }
-    }
+  //       if (result.length === limit) {
+  //         break; // Stop when we reach the limit
+  //       }
+  //     }
+  //   }
 
-    // If we exhausted all groups and still don't have enough results, stop
-    if (Object.values(groupedByHour).every((matches) => matches.length === 0)) {
-      break;
-    }
-  }
+  //   // If we exhausted all groups and still don't have enough results, stop
+  //   if (Object.values(groupedByHour).every((matches) => matches.length === 0)) {
+  //     break;
+  //   }
+  // }
 
   return result;
 };
