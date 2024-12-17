@@ -182,6 +182,7 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
     const futureDays = last_match
       ? getFutureDays(5, last_match.date)
       : getFutureDays(5, null);
+    ///REAL
     // const [response1, response2, response3, response4, response5] =
     //   await Promise.all([
     //     get_api_matches(futureDays[0]),
@@ -190,33 +191,45 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
     //     get_api_matches(futureDays[3]),
     //     get_api_matches(futureDays[4]),
     //   ]);
-
+    /// TEST
     const { response1, response2, response3, response4, response5 } =
       dummyMatches;
 
-    // console.log(response1.data);
-
+    /// TEST
     const response = {
       data: {
         response: [
-          ...(response1.data.response?.length
-            ? groupByUTCHours(response1.data.response)
-            : []),
-          ...(response2.data.response?.length
-            ? groupByUTCHours(response2.data.response)
-            : []),
-          ...(response3.data.response?.length
-            ? groupByUTCHours(response3.data.response)
-            : []),
-          ...(response4.data.response?.length
-            ? groupByUTCHours(response4.data.response)
-            : []),
-          ...(response5.data.response?.length
-            ? response5.data.response.slice(-10)
-            : []),
+          ...(response1.length ? groupByUTCHours(response1.data.response) : []),
+          ...(response2.length ? groupByUTCHours(response2.data.response) : []),
+          ...(response3.length ? groupByUTCHours(response3.data.response) : []),
+          ...(response4.length ? groupByUTCHours(response4.data.response) : []),
+          ...(response5.length ? response5.data.response.slice(-10) : []),
         ],
       },
     };
+
+    ///REAL
+    // const response = {
+    //   data: {
+    //     response: [
+    //       ...(response1.data.response?.length
+    //         ? groupByUTCHours(response1.data.response)
+    //         : []),
+    //       ...(response2.data.response?.length
+    //         ? groupByUTCHours(response2.data.response)
+    //         : []),
+    //       ...(response3.data.response?.length
+    //         ? groupByUTCHours(response3.data.response)
+    //         : []),
+    //       ...(response4.data.response?.length
+    //         ? groupByUTCHours(response4.data.response)
+    //         : []),
+    //       ...(response5.data.response?.length
+    //         ? response5.data.response.slice(-10)
+    //         : []),
+    //     ],
+    //   },
+    // };
 
     let structure = [];
 
