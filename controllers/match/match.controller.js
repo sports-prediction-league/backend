@@ -191,6 +191,8 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
         get_api_matches(futureDays[4]),
       ]);
 
+    console.log(response1.data);
+
     const response = {
       data: {
         response: [
