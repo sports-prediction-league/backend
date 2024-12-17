@@ -3,7 +3,7 @@ const { Match } = require("../../models");
 const { cairo } = require("starknet");
 const { get_current_round } = require("../controller/contract.controller");
 const { Op } = require("sequelize");
-
+const dummyMatches = require("./dummy_match.json");
 const groupByUTCHours = (
   arr,
   startHourUTC = 10,
@@ -182,16 +182,19 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
     const futureDays = last_match
       ? getFutureDays(5, last_match.date)
       : getFutureDays(5, null);
-    const [response1, response2, response3, response4, response5] =
-      await Promise.all([
-        get_api_matches(futureDays[0]),
-        get_api_matches(futureDays[1]),
-        get_api_matches(futureDays[2]),
-        get_api_matches(futureDays[3]),
-        get_api_matches(futureDays[4]),
-      ]);
+    // const [response1, response2, response3, response4, response5] =
+    //   await Promise.all([
+    //     get_api_matches(futureDays[0]),
+    //     get_api_matches(futureDays[1]),
+    //     get_api_matches(futureDays[2]),
+    //     get_api_matches(futureDays[3]),
+    //     get_api_matches(futureDays[4]),
+    //   ]);
 
-    console.log(response1.data);
+    const { response1, response2, response3, response4, response5 } =
+      dummyMatches;
+
+    // console.log(response1.data);
 
     const response = {
       data: {
