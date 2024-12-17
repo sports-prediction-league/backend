@@ -199,11 +199,11 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
     const response = {
       data: {
         response: [
-          ...(response1.length ? groupByUTCHours(response1.data.response) : []),
-          ...(response2.length ? groupByUTCHours(response2.data.response) : []),
-          ...(response3.length ? groupByUTCHours(response3.data.response) : []),
-          ...(response4.length ? groupByUTCHours(response4.data.response) : []),
-          ...(response5.length ? response5.data.response.slice(-10) : []),
+          ...(response1.length ? groupByUTCHours(response1) : []),
+          ...(response2.length ? groupByUTCHours(response2) : []),
+          ...(response3.length ? groupByUTCHours(response3) : []),
+          ...(response4.length ? groupByUTCHours(response4) : []),
+          ...(response5.length ? groupByUTCHours(response5) : []),
         ],
       },
     };
