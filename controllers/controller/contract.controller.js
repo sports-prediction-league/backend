@@ -6,13 +6,6 @@ const get_provider_and_account = () => {
   const PRIVATE_KEY = process.env.PRIVATE_KEY;
   const ACCOUNT_ADDRESS = process.env.ACCOUNT_ADDRESS;
 
-  const CONTRACT_ADDRESS =
-    process.env.NODE_ENV === "production"
-      ? process.env.PROD_CONTRACT_ADDRESS
-      : process.env.NODE_ENV === "test"
-      ? process.env.TEST_CONTRACT_ADDRESS
-      : process.env.DEV_CONTRACT_ADDRESS;
-
   const provider = new RpcProvider({ nodeUrl: `${RPC_URL}` });
   const account = new Account(provider, ACCOUNT_ADDRESS, PRIVATE_KEY);
 
@@ -20,6 +13,12 @@ const get_provider_and_account = () => {
 };
 
 const get_contract_instance = () => {
+  const CONTRACT_ADDRESS =
+    process.env.NODE_ENV === "production"
+      ? process.env.PROD_CONTRACT_ADDRESS
+      : process.env.NODE_ENV === "test"
+      ? process.env.TEST_CONTRACT_ADDRESS
+      : process.env.DEV_CONTRACT_ADDRESS;
   const { account, provider } = get_provider_and_account();
   const contract = new Contract(ABI, CONTRACT_ADDRESS, provider);
   // Connect account with the contract
