@@ -76,7 +76,7 @@ bot.setWebHook(`${SERVER_URL}/bot${BOT_TOKEN}`);
 
 app.get("/profile_pic", get_profile_pic);
 app.get("/leaderboard_images", get_leaderboard_images);
-app.get("/execute", async (req, res) => {
+app.post("/execute", async (req, res) => {
   try {
     const tx = await execute_contract_call(req.body);
     res.status(200).send(tx);
