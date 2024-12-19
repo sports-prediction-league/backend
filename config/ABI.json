@@ -6,18 +6,6 @@
   },
   {
     "type": "struct",
-    "name": "core::byte_array::ByteArray",
-    "members": [
-      {
-        "name": "data",
-        "type": "core::array::Array::<core::bytes_31::bytes31>"
-      },
-      { "name": "pending_word", "type": "core::felt252" },
-      { "name": "pending_word_len", "type": "core::integer::u32" }
-    ]
-  },
-  {
-    "type": "struct",
     "name": "core::integer::u256",
     "members": [
       { "name": "low", "type": "core::integer::u128" },
@@ -28,7 +16,7 @@
     "type": "struct",
     "name": "contract::Leaderboard",
     "members": [
-      { "name": "user", "type": "core::byte_array::ByteArray" },
+      { "name": "user", "type": "core::felt252" },
       { "name": "total_score", "type": "core::integer::u256" }
     ]
   },
@@ -61,6 +49,14 @@
     ]
   },
   {
+    "type": "enum",
+    "name": "core::option::Option::<contract::Leaderboard>",
+    "variants": [
+      { "name": "Some", "type": "contract::Leaderboard" },
+      { "name": "None", "type": "()" }
+    ]
+  },
+  {
     "type": "interface",
     "name": "contract::IPrediction",
     "items": [
@@ -69,16 +65,28 @@
         "name": "register_user",
         "inputs": [
           { "name": "id", "type": "core::felt252" },
-          { "name": "details", "type": "core::byte_array::ByteArray" }
+          { "name": "username", "type": "core::felt252" }
         ],
         "outputs": [],
         "state_mutability": "external"
       },
       {
         "type": "function",
-        "name": "get_user",
+        "name": "get_user_by_id",
         "inputs": [{ "name": "id", "type": "core::felt252" }],
-        "outputs": [{ "type": "core::byte_array::ByteArray" }],
+        "outputs": [{ "type": "core::felt252" }],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_user_by_address",
+        "inputs": [
+          {
+            "name": "address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [{ "type": "core::felt252" }],
         "state_mutability": "view"
       },
       {
@@ -182,6 +190,46 @@
         "inputs": [],
         "outputs": [{ "type": "core::integer::u256" }],
         "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "is_address_registered",
+        "inputs": [
+          {
+            "name": "address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [{ "type": "core::bool" }],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_user_total_scores",
+        "inputs": [{ "name": "user_id", "type": "core::felt252" }],
+        "outputs": [{ "type": "core::integer::u256" }],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_first_position",
+        "inputs": [],
+        "outputs": [
+          { "type": "core::option::Option::<contract::Leaderboard>" }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "make_bulk_prediction",
+        "inputs": [
+          {
+            "name": "predictions",
+            "type": "core::array::Array::<contract::Score>"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
       }
     ]
   },

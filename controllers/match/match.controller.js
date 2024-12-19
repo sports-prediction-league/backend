@@ -3,7 +3,7 @@ const { Match } = require("../../models");
 const { cairo } = require("starknet");
 const { get_current_round } = require("../controller/contract.controller");
 const { Op } = require("sequelize");
-
+const dummyMatches = require("./dummy_match.json");
 const groupByUTCHours = (
   arr,
   startHourUTC = 10,
@@ -11,107 +11,49 @@ const groupByUTCHours = (
   limit = 10
 ) => {
   const prioritizedTeamNames = [
-    "barcelona",
-    "real madrid",
     "manchester united",
-    "liverpool",
-    "manchester city",
-    "paris saint-germain",
+    "real madrid",
+    "barcelona",
     "bayern munich",
+    "bayern",
+    "liverpool",
+    "paris saint-germain",
+    "paris",
     "juventus",
     "chelsea",
+    "manchester city",
     "arsenal",
     "ac milan",
+    "ac",
     "inter milan",
-    "tottenham hotspur",
+    "inter",
     "atletico madrid",
+    "atletico",
+    "tottenham hotspur",
+    "tottenham",
     "borussia dortmund",
+    "dortmund",
     "ajax",
     "napoli",
-    "roma",
+    "as roma",
+    "benfica",
+    "sevilla",
     "leicester city",
     "leicester",
-    "rb leipzig",
-    "sevilla",
-    "lazio",
-    "benfica",
-    "porto",
-    "sporting cp",
     "valencia",
-    "villarreal",
-    "real sociedad",
-    "wolverhampton wanderers",
-    "everton",
-    "west ham united",
-    "aston villa",
-    "monaco",
     "lyon",
-    "marseille",
-    "real betis",
-    "fiorentina",
-    "atalanta",
-    "celtic",
-    "rangers",
-    "shakhtar donetsk",
-    "dynamo kyiv",
-    "zenit st. petersburg",
-    "cska moscow",
-    "spartak moscow",
-    "galatasaray",
-    "fenerbahce",
-    "besiktas",
-    "bayer leverkusen",
-    "schalke 04",
-    "hoffentlich",
+    "villarreal",
+    "everton",
+    "monaco",
+    "porto",
     "wolfsburg",
-    "eintracht frankfurt",
-    "lille",
-    "nice",
-    "red bull salzburg",
-    "anderlecht",
-    "club brugge",
-    "genk",
-    "basel",
-    "young boys",
-    "dinamo zagreb",
-    "olympiacos",
-    "panathinaikos",
-    "aek athens",
-    "braga",
-    "real salt lake",
-    "la galaxy",
-    "new york city fc",
-    "atlanta united",
-    "toronto fc",
-    "seattle sounders",
-    "orlando city",
-    "philadelphia union",
-    "portland timbers",
-    "new york red bulls",
-    "fc dallas",
-    "chicago fire",
-    "santos",
-    "flamengo",
-    "corinthians",
-    "palmeiras",
-    "gremio",
-    "boca juniors",
-    "river plate",
-    "san lorenzo",
-    "independiente",
-    "vasco da gama",
-    "internacional",
-    "cruzeiro",
-    "universidad de chile",
-    "colo-colo",
-    "america de cali",
-    "atletico nacional",
-    "pachuca",
-    "tigres uanl",
+    "aston villa",
+    "aston",
+    "west ham united",
+    "west ham",
+    "full ham",
     "monterrey",
-    "club america",
-    "cruz azul",
-    "chivas guadalajara",
+    "roma",
   ];
   const groupedByHour = {};
   const prioritizedItems = [];
@@ -124,11 +66,20 @@ const groupByUTCHours = (
 
     // Prioritize items where the team names match any in the prioritizedTeamNames array
     if (
-      prioritizedTeamNames.includes(item.teams.home.name.toLowerCase()) ||
-      prioritizedTeamNames.includes(item.teams.away.name.toLowerCase())
+      (prioritizedTeamNames.includes(
+        item?.teams?.home?.name?.toLowerCase()?.trim()
+      ) ||
+        prioritizedTeamNames.includes(
+          item?.teams?.away?.name?.toLowerCase()?.trim()
+        )) &&
+      item?.fixture?.status?.short === "NS"
     ) {
       prioritizedItems.push(item); // Add to prioritized list regardless of time range
-    } else if (utcHours >= startHourUTC && utcHours < endHourUTC) {
+    } else if (
+      utcHours >= startHourUTC &&
+      utcHours < endHourUTC &&
+      item?.fixture?.status?.short === "NS"
+    ) {
       // If this hour doesn't have a group yet, initialize it
       if (!groupedByHour[utcHours]) {
         groupedByHour[utcHours] = [];
@@ -213,62 +164,92 @@ const getFutureDays = (numOfDays, start_date) => {
   return daysArray;
 };
 
-exports.set_next_matches = async (callback, current_round) => {
+exports.set_next_matches = async (transaction, callback, current_round) => {
   try {
     const last_match = await Match.findOne({
       order: [["date", "DESC"]],
     });
 
+    // Get the current date
+    // const today = new Date();
+
+    // // Create a new Date object for yesterday by subtracting one day (24 hours)
+    // const yesterday = new Date(today);
+    // yesterday.setDate(today.getDate() - 2);
+
+    // console.log("Yesterday's date:", yesterday);
+
     const futureDays = last_match
       ? getFutureDays(5, last_match.date)
       : getFutureDays(5, null);
-    const [response1, response2, response3, response4, response5] =
-      await Promise.all([
-        get_api_matches(futureDays[0]),
-        get_api_matches(futureDays[1]),
-        get_api_matches(futureDays[2]),
-        get_api_matches(futureDays[3]),
-        get_api_matches(futureDays[4]),
-      ]);
+    ///REAL
+    // const [response1, response2, response3, response4, response5] =
+    //   await Promise.all([
+    //     get_api_matches(futureDays[0]),
+    //     get_api_matches(futureDays[1]),
+    //     get_api_matches(futureDays[2]),
+    //     get_api_matches(futureDays[3]),
+    //     get_api_matches(futureDays[4]),
+    //   ]);
+    /// TEST
+    const { response1, response2, response3, response4, response5 } =
+      dummyMatches;
 
+    /// TEST
     const response = {
       data: {
         response: [
-          ...(response1.data.response?.length
-            ? groupByUTCHours(response1.data.response)
-            : []),
-          ...(response2.data.response?.length
-            ? groupByUTCHours(response2.data.response)
-            : []),
-          ...(response3.data.response?.length
-            ? groupByUTCHours(response3.data.response)
-            : []),
-          ...(response4.data.response?.length
-            ? groupByUTCHours(response4.data.response)
-            : []),
-          ...(response5.data.response?.length
-            ? response5.data.response.slice(-10)
-            : []),
+          ...(response1.length ? groupByUTCHours(response1) : []),
+          ...(response2.length ? groupByUTCHours(response2) : []),
+          ...(response3.length ? groupByUTCHours(response3) : []),
+          ...(response4.length ? groupByUTCHours(response4) : []),
+          ...(response5.length ? groupByUTCHours(response5) : []),
         ],
       },
     };
+
+    ///REAL
+    // const response = {
+    //   data: {
+    //     response: [
+    //       ...(response1.data.response?.length
+    //         ? groupByUTCHours(response1.data.response)
+    //         : []),
+    //       ...(response2.data.response?.length
+    //         ? groupByUTCHours(response2.data.response)
+    //         : []),
+    //       ...(response3.data.response?.length
+    //         ? groupByUTCHours(response3.data.response)
+    //         : []),
+    //       ...(response4.data.response?.length
+    //         ? groupByUTCHours(response4.data.response)
+    //         : []),
+    //       ...(response5.data.response?.length
+    //         ? response5.data.response.slice(-10)
+    //         : []),
+    //     ],
+    //   },
+    // };
 
     let structure = [];
 
     if (response.data?.response?.length) {
       for (let i = 0; i < response.data.response.length; i++) {
         const element = response.data.response[i];
-        await Match.create({
-          id: element.fixture.id.toString(),
-          date: element.fixture.date,
-          round: current_round + 1,
-          dateCompare: formatDateFromString(element.fixture.date),
-          details: {
-            fixture: element.fixture,
-            league: element.league,
-            teams: element.teams,
+        await Match.create(
+          {
+            id: element.fixture.id.toString(),
+            date: element.fixture.date,
+            round: current_round + 1,
+            dateCompare: formatDateFromString(element.fixture.date),
+            details: {
+              fixture: element.fixture,
+              league: element.league,
+              teams: element.teams,
+            },
           },
-        });
+          { transaction }
+        );
 
         structure.push({
           inputed: true,
@@ -283,81 +264,101 @@ exports.set_next_matches = async (callback, current_round) => {
 
     callback({ success: true, msg: "Matches pulled", data: structure });
   } catch (error) {
-    callback({ success: false, msg: error, data: {} });
+    // await callback({ success: false, msg: error, data: {} });
+    throw error;
   }
 };
 
-exports.set_scores = async (callback) => {
+exports.set_scores = async (transaction, callback) => {
   try {
     // Calculate the start and end of yesterday
-    const startOfYesterday = new Date(today.setHours(0, 0, 0, 0) - 86400000); // Midnight of yesterday
-    const endOfYesterday = new Date(today.setHours(23, 59, 59, 999)); // End of yesterday
+    const now = new Date();
+    const yesterdayStart = new Date();
+    yesterdayStart.setDate(now.getDate() - 1);
+    yesterdayStart.setHours(0, 0, 0, 0); // Set to the start of the day
 
+    const yesterdayEnd = new Date();
+    yesterdayEnd.setDate(now.getDate() - 1);
+    yesterdayEnd.setHours(23, 59, 59, 999); // Set to the end of the day
     const matches = await Match.findAll({
       where: {
         scored: false,
         date: {
-          [Op.gte]: startOfYesterday, // Greater than or equal to the start of yesterday
-          [Op.lte]: endOfYesterday, // Less than or equal to the end of yesterday
+          [Op.between]: [yesterdayStart, yesterdayEnd], // Greater than or equal to the start of yesterday
+          // [Op.lte]: endOfYesterday, // Less than or equal to the end of yesterday
         },
       },
     });
 
-    let broken = false;
     let structure = [];
 
     if (matches.length) {
-      const match = matches[0];
-      const response = await get_api_matches(match.date.toString());
-      for (let i = 0; i < response.data.response.length && i < 100; i++) {
-        const element = response.data.response[i];
-        const _match = matches[i];
+      const response = await get_api_matches(matches[0].date.toString());
+      const api_matches = response.data?.response ?? [];
+      for (let i = 0; i < matches.length; i++) {
+        const match = matches[i];
 
         if (
-          element.fixture.id.toString().trim() !== _match.id.toString().trim()
+          Date.now() / 1000 >=
+          Math.floor(new Date(match.date).getTime() / 1000) + 5400
         ) {
-          await callback({ success: false, msg: "Data corrupted", data: {} });
-          broken = true;
-          break;
-        } else {
-          if (
-            Date.now() / 1000 <
-            Math.floor(new Date(_match.date).getTime() / 1000) + 5400
-          ) {
-            callback({ success: false, msg: "Match not ended", data: {} });
-            broken = true;
-            break;
-          } else {
-            await _match.update({
-              scored: true,
-              details: {
-                ..._match.details,
-                goals: element.goals,
+          const find = api_matches.find(
+            (fd) =>
+              fd.fixture.id.toString().trim() === match.id.toString().trim()
+          );
+          if (find) {
+            await match.update(
+              {
+                scored: true,
+                details: {
+                  ...match.details,
+                  goals: find.goals,
+                },
               },
-            });
+              { transaction }
+            );
 
             structure.push({
               inputed: true,
-              match_id: _match.id.toString().trim(),
-              home: Number(element?.goals?.home ?? 0),
-              away: Number(element?.goals?.away ?? 0),
+              match_id: match.id.toString().trim(),
+              home: Number(find?.goals?.home ?? 0),
+              away: Number(find?.goals?.away ?? 0),
             });
+          } else {
+            console.log("not found");
           }
+        } else {
+          console.log("not completed");
         }
       }
+    } else {
+      console.log("empty");
     }
-    if (broken) return;
+
+    console.log(structure);
     await callback({ success: true, msg: "Scored pulled", data: structure });
   } catch (error) {
-    await callback({ success: false, msg: error, data: {} });
+    // await callback({ success: false, msg: error, data: {} });
+    throw error;
   }
 };
 
 exports.get_matches = async (req, res) => {
   try {
+    const current_round = await get_current_round();
+    const match = await Match.findOne({
+      order: [["date", "ASC"]],
+
+      where: {
+        scored: false,
+      },
+    });
+    const converted_round = Number(current_round);
     const { round } = req.query;
     if (round) {
       const matches = await Match.findAndCountAll({
+        order: [["date", "ASC"]],
+
         where: {
           round: round,
         },
@@ -366,25 +367,28 @@ exports.get_matches = async (req, res) => {
       res.status(200).send({
         success: true,
         message: "Matches Fetched",
-        data: { matches, current_round: round },
+        data: { matches, current_round: round, total_rounds: converted_round },
       });
 
       return;
     }
 
-    const current_round = await get_current_round();
-
-    const converted_round = Number(current_round);
     const matches = await Match.findAndCountAll({
+      order: [["date", "ASC"]],
+
       where: {
-        round: converted_round,
+        round: match?.round ?? converted_round,
       },
     });
 
     res.status(200).send({
       success: true,
       message: "Matches Fetched",
-      data: { matches, current_round: converted_round },
+      data: {
+        matches,
+        total_rounds: converted_round,
+        current_round: match?.round ?? 0,
+      },
     });
   } catch (error) {
     res

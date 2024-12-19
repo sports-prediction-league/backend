@@ -3,20 +3,19 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, DataTypes) {
-    await queryInterface.createTable("users", {
+    await queryInterface.createTable("statuses", {
       id: {
-        type: DataTypes.STRING,
+        type: DataTypes.UUID,
         allowNull: false,
         primaryKey: true,
+        defaultValue: DataTypes.UUIDV4,
       },
-      username: {
-        type: DataTypes.STRING,
+      match_open: {
+        type: DataTypes.BOOLEAN,
         allowNull: false,
+        defaultValue: false,
       },
-      chatId: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
+
       createdAt: {
         allowNull: false,
         type: DataTypes.DATE,
@@ -36,7 +35,7 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable("users");
+    await queryInterface.dropTable("statuses");
 
     /**
      * Add reverting commands here.
