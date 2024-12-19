@@ -6,6 +6,18 @@
   },
   {
     "type": "struct",
+    "name": "contract::User",
+    "members": [
+      { "name": "id", "type": "core::felt252" },
+      { "name": "username", "type": "core::felt252" },
+      {
+        "name": "address",
+        "type": "core::starknet::contract_address::ContractAddress"
+      }
+    ]
+  },
+  {
+    "type": "struct",
     "name": "core::integer::u256",
     "members": [
       { "name": "low", "type": "core::integer::u128" },
@@ -16,7 +28,7 @@
     "type": "struct",
     "name": "contract::Leaderboard",
     "members": [
-      { "name": "user", "type": "core::felt252" },
+      { "name": "user", "type": "contract::User" },
       { "name": "total_score", "type": "core::integer::u256" }
     ]
   },
@@ -63,10 +75,7 @@
       {
         "type": "function",
         "name": "register_user",
-        "inputs": [
-          { "name": "id", "type": "core::felt252" },
-          { "name": "username", "type": "core::felt252" }
-        ],
+        "inputs": [{ "name": "user", "type": "contract::User" }],
         "outputs": [],
         "state_mutability": "external"
       },
@@ -74,7 +83,7 @@
         "type": "function",
         "name": "get_user_by_id",
         "inputs": [{ "name": "id", "type": "core::felt252" }],
-        "outputs": [{ "type": "core::felt252" }],
+        "outputs": [{ "type": "contract::User" }],
         "state_mutability": "view"
       },
       {
@@ -86,7 +95,7 @@
             "type": "core::starknet::contract_address::ContractAddress"
           }
         ],
-        "outputs": [{ "type": "core::felt252" }],
+        "outputs": [{ "type": "contract::User" }],
         "state_mutability": "view"
       },
       {
@@ -128,17 +137,6 @@
         ],
         "outputs": [{ "type": "core::array::Array::<contract::Leaderboard>" }],
         "state_mutability": "view"
-      },
-      {
-        "type": "function",
-        "name": "make_prediction",
-        "inputs": [
-          { "name": "match_id", "type": "core::felt252" },
-          { "name": "home", "type": "core::integer::u256" },
-          { "name": "away", "type": "core::integer::u256" }
-        ],
-        "outputs": [],
-        "state_mutability": "external"
       },
       {
         "type": "function",
@@ -206,7 +204,12 @@
       {
         "type": "function",
         "name": "get_user_total_scores",
-        "inputs": [{ "name": "user_id", "type": "core::felt252" }],
+        "inputs": [
+          {
+            "name": "address",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
         "outputs": [{ "type": "core::integer::u256" }],
         "state_mutability": "view"
       },
@@ -228,6 +231,13 @@
             "type": "core::array::Array::<contract::Score>"
           }
         ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "make_prediction",
+        "inputs": [{ "name": "prediction", "type": "contract::Score" }],
         "outputs": [],
         "state_mutability": "external"
       }
