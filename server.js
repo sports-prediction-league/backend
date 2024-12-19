@@ -78,7 +78,6 @@ app.get("/profile_pic", get_profile_pic);
 app.get("/leaderboard_images", get_leaderboard_images);
 app.post("/execute", async (req, res) => {
   try {
-    console.log({ body: req.body });
     const tx = await execute_contract_call(req.body);
     res.status(200).send(tx);
   } catch (error) {

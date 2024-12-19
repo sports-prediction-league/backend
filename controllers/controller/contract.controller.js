@@ -63,7 +63,6 @@ const register_scores = async (scores, callback) => {
 
 const execute_contract_call = async (call) => {
   try {
-    console.log({ call });
     const { account } = get_provider_and_account();
 
     const tx = await account.execute([call]);
