@@ -199,11 +199,101 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
     const response = {
       data: {
         response: [
-          ...(response1.length ? groupByUTCHours(response1) : []),
-          ...(response2.length ? groupByUTCHours(response2) : []),
-          ...(response3.length ? groupByUTCHours(response3) : []),
-          ...(response4.length ? groupByUTCHours(response4) : []),
-          ...(response5.length ? groupByUTCHours(response5) : []),
+          ...(response1.length
+            ? groupByUTCHours(
+                response1.map((mp) => {
+                  const baseDate = new Date();
+                  baseDate.setHours(baseDate.getHours() + 1);
+
+                  // Add extra minutes based on the index
+                  baseDate.setMinutes(baseDate.getMinutes() + index);
+
+                  // Format the date to ISO string with time zone
+                  const formattedDate = baseDate.toISOString();
+
+                  return {
+                    ...mp,
+                    fixture: { ...mp.fixture, date: formattedDate },
+                  };
+                })
+              )
+            : []),
+          ...(response2.length
+            ? groupByUTCHours(
+                response2.map((mp) => {
+                  const baseDate = new Date();
+                  baseDate.setHours(baseDate.getHours() + 1);
+
+                  // Add extra minutes based on the index
+                  baseDate.setMinutes(baseDate.getMinutes() + index);
+
+                  // Format the date to ISO string with time zone
+                  const formattedDate = baseDate.toISOString();
+
+                  return {
+                    ...mp,
+                    fixture: { ...mp.fixture, date: formattedDate },
+                  };
+                })
+              )
+            : []),
+          ...(response3.length
+            ? groupByUTCHours(
+                response3.map((mp) => {
+                  const baseDate = new Date();
+                  baseDate.setHours(baseDate.getHours() + 1);
+
+                  // Add extra minutes based on the index
+                  baseDate.setMinutes(baseDate.getMinutes() + index);
+
+                  // Format the date to ISO string with time zone
+                  const formattedDate = baseDate.toISOString();
+
+                  return {
+                    ...mp,
+                    fixture: { ...mp.fixture, date: formattedDate },
+                  };
+                })
+              )
+            : []),
+          ...(response4.length
+            ? groupByUTCHours(
+                response4.map((mp) => {
+                  const baseDate = new Date();
+                  baseDate.setHours(baseDate.getHours() + 1);
+
+                  // Add extra minutes based on the index
+                  baseDate.setMinutes(baseDate.getMinutes() + index);
+
+                  // Format the date to ISO string with time zone
+                  const formattedDate = baseDate.toISOString();
+
+                  return {
+                    ...mp,
+                    fixture: { ...mp.fixture, date: formattedDate },
+                  };
+                })
+              )
+            : []),
+          ...(response5.length
+            ? groupByUTCHours(
+                response5.map((mp) => {
+                  const baseDate = new Date();
+                  baseDate.setHours(baseDate.getHours() + 1);
+
+                  // Add extra minutes based on the index
+                  baseDate.setMinutes(baseDate.getMinutes() + index);
+
+                  // Format the date to ISO string with time zone
+                  const formattedDate = baseDate.toISOString();
+
+                  return {
+                    ...mp,
+                    fixture: { ...mp.fixture, date: formattedDate },
+                  };
+                })
+              )
+            : []),
         ],
       },
     };

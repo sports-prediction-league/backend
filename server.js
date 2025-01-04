@@ -25,6 +25,7 @@ const {
   register_scores,
   get_user_points,
   get_first_position,
+  execute_contract_call,
 } = require("./controllers/controller/contract.controller");
 
 const BOT_TOKEN =
@@ -75,6 +76,16 @@ bot.setWebHook(`${SERVER_URL}/bot${BOT_TOKEN}`);
 
 app.get("/profile_pic", get_profile_pic);
 app.get("/leaderboard_images", get_leaderboard_images);
+app.post("/execute", async (req, res) => {
+  try {
+    const tx = await execute_contract_call(req.body);
+    res.status(200).send(tx);
+  } catch (error) {
+    res
+      .status(500)
+      .send({ success: false, message: "Internal server error", data: {} });
+  }
+});
 
 bot.on("message", async (msg) => {
   // console.log(msg);
