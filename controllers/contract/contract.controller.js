@@ -1,6 +1,12 @@
 const { RpcProvider, Contract, Account, cairo, CallData } = require("starknet");
 const ABI = require("../../config/ABI.json");
 
+const CONTRACT_ADDRESS =
+  process.env.NODE_ENV === "production"
+    ? process.env.PROD_CONTRACT_ADDRESS
+    : process.env.NODE_ENV === "test"
+    ? process.env.TEST_CONTRACT_ADDRESS
+    : process.env.DEV_CONTRACT_ADDRESS;
 const get_provider_and_account = () => {
   const RPC_URL = process.env.RPC_URL;
   const PRIVATE_KEY = process.env.PRIVATE_KEY;
@@ -13,12 +19,6 @@ const get_provider_and_account = () => {
 };
 
 const get_contract_instance = () => {
-  const CONTRACT_ADDRESS =
-    process.env.NODE_ENV === "production"
-      ? process.env.PROD_CONTRACT_ADDRESS
-      : process.env.NODE_ENV === "test"
-      ? process.env.TEST_CONTRACT_ADDRESS
-      : process.env.DEV_CONTRACT_ADDRESS;
   const { account, provider } = get_provider_and_account();
   const contract = new Contract(ABI, CONTRACT_ADDRESS, provider);
   // Connect account with the contract
@@ -63,11 +63,36 @@ const register_scores = async (scores, callback) => {
 
 const execute_contract_call = async (call) => {
   try {
-    console.log({ call });
+    if (!call) {
+      return { success: false, data: {}, message: "Invalid call" };
+    }
+
+    if (
+      !call.entrypoint ||
+      !call.contractAddress ||
+      (!call.calldata && !Array.isArray(call.calldata)) ||
+      call.calldata.length < 6
+    ) {
+      return { success: false, data: {}, message: "Invalid call" };
+    }
+    if (call.entrypoint !== "execute_from_outside_v2") {
+      return { success: false, data: {}, message: "Invalid call" };
+    }
+
+    if (
+      call.contractAddress !==
+      "0x0312ae428d2bd7d3189145b5a77e890bd6934c2fae2f5ca0b9c00ea68f143a63"
+    ) {
+      return { success: false, data: {}, message: "Invalid call" };
+    }
+    if (call.calldata[5] !== CallData.compile([CONTRACT_ADDRESS])[0]) {
+      return { success: false, data: {}, message: "Invalid call" };
+    }
+
     const { account } = get_provider_and_account();
     const tx = await account.execute([call]);
-
-    return { success: true, data: tx, message: "Registration successful" };
+    // account.waitForTransaction(tx.transaction_hash)
+    return { success: true, data: tx, message: "Transaction successful" };
   } catch (error) {
     console.log(error);
     return { success: false, data: {}, message: error.message };
