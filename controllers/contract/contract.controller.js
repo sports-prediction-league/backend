@@ -1,4 +1,4 @@
-const { RpcProvider, Contract, Account, cairo } = require("starknet");
+const { RpcProvider, Contract, Account, cairo, CallData } = require("starknet");
 const ABI = require("../../config/ABI.json");
 
 const get_provider_and_account = () => {
@@ -63,9 +63,10 @@ const register_scores = async (scores, callback) => {
 
 const execute_contract_call = async (call) => {
   try {
+    console.log({ call });
     const { account } = get_provider_and_account();
-
     const tx = await account.execute([call]);
+
     return { success: true, data: tx, message: "Registration successful" };
   } catch (error) {
     console.log(error);

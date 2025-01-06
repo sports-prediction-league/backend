@@ -1,7 +1,7 @@
 const axios = require("axios");
 const { Match } = require("../../models");
 const { cairo } = require("starknet");
-const { get_current_round } = require("../controller/contract.controller");
+const { get_current_round } = require("../contract/contract.controller");
 const { Op } = require("sequelize");
 const dummyMatches = require("./dummy_match.json");
 const groupByUTCHours = (
@@ -201,7 +201,7 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
         response: [
           ...(response1.length
             ? groupByUTCHours(
-                response1.map((mp) => {
+                response1.map((mp, index) => {
                   const baseDate = new Date();
                   baseDate.setHours(baseDate.getHours() + 1);
 
@@ -220,7 +220,7 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
             : []),
           ...(response2.length
             ? groupByUTCHours(
-                response2.map((mp) => {
+                response2.map((mp, index) => {
                   const baseDate = new Date();
                   baseDate.setHours(baseDate.getHours() + 1);
 
@@ -239,7 +239,7 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
             : []),
           ...(response3.length
             ? groupByUTCHours(
-                response3.map((mp) => {
+                response3.map((mp, index) => {
                   const baseDate = new Date();
                   baseDate.setHours(baseDate.getHours() + 1);
 
@@ -258,7 +258,7 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
             : []),
           ...(response4.length
             ? groupByUTCHours(
-                response4.map((mp) => {
+                response4.map((mp, index) => {
                   const baseDate = new Date();
                   baseDate.setHours(baseDate.getHours() + 1);
 
@@ -277,7 +277,7 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
             : []),
           ...(response5.length
             ? groupByUTCHours(
-                response5.map((mp) => {
+                response5.map((mp, index) => {
                   const baseDate = new Date();
                   baseDate.setHours(baseDate.getHours() + 1);
 

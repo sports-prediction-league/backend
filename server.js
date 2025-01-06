@@ -26,7 +26,7 @@ const {
   get_user_points,
   get_first_position,
   execute_contract_call,
-} = require("./controllers/controller/contract.controller");
+} = require("./controllers/contract/contract.controller");
 
 const BOT_TOKEN =
   process.env.NODE_ENV === "production"
