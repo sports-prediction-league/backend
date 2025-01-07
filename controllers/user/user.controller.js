@@ -103,3 +103,12 @@ exports.register_user = async (msg) => {
     console.log(error);
   }
 };
+
+exports.get_user_by_id = async (id) => {
+  try {
+    const user = await User.findByPk(id.toString());
+    return user;
+  } catch (error) {
+    console.log(error);
+  }
+};

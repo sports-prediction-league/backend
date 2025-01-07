@@ -9,6 +9,7 @@ const {
   get_profile_pic,
   register_user,
   get_leaderboard_images,
+  get_user_by_id,
 } = require("./controllers/user/user.controller");
 const {
   set_next_matches,
@@ -26,6 +27,7 @@ const {
   get_user_points,
   get_first_position,
   execute_contract_call,
+  deploy_account,
 } = require("./controllers/contract/contract.controller");
 
 const BOT_TOKEN =
@@ -79,6 +81,31 @@ app.get("/leaderboard_images", get_leaderboard_images);
 app.post("/execute", async (req, res) => {
   try {
     const tx = await execute_contract_call(req.body);
+    res.status(200).send(tx);
+  } catch (error) {
+    res
+      .status(500)
+      .send({ success: false, message: "Internal server error", data: {} });
+  }
+});
+
+app.post("/deploy-account", async (req, res) => {
+  try {
+    const { account_payload, user_id } = req.body;
+    if (!account_payload || !user_id) {
+      res
+        .status(400)
+        .send({ success: false, message: "Invalid payload", data: {} });
+      return;
+    }
+    const user = await get_user_by_id(user_id);
+    if (!user) {
+      res
+        .status(400)
+        .send({ success: false, message: "Invalid user", data: {} });
+      return;
+    }
+    const tx = await deploy_account(req.body.account_payload);
     res.status(200).send(tx);
   } catch (error) {
     res

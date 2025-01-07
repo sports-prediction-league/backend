@@ -99,6 +99,21 @@ const execute_contract_call = async (call) => {
   }
 };
 
+const deploy_account = async (account_payload) => {
+  try {
+    if (!call) {
+      return { success: false, data: {}, message: "Invalid call" };
+    }
+
+    const { account } = get_provider_and_account();
+    const tx = await account.deployAccount(account_payload);
+    return { success: true, data: tx, message: "Deployment successful" };
+  } catch (error) {
+    console.log(error);
+    return { success: false, data: {}, message: error.message };
+  }
+};
+
 const get_current_round = async () => {
   try {
     const contract = get_contract_instance();
@@ -136,4 +151,5 @@ module.exports = {
   get_first_position,
   get_user_points,
   execute_contract_call,
+  deploy_account,
 };
