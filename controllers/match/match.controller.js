@@ -213,7 +213,12 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
 
                   return {
                     ...mp,
-                    fixture: { ...mp.fixture, date: formattedDate },
+
+                    fixture: {
+                      ...mp.fixture,
+                      id: Math.floor(1000000 + Math.random() * 9000000),
+                      date: formattedDate,
+                    },
                   };
                 })
               )
@@ -232,7 +237,11 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
 
                   return {
                     ...mp,
-                    fixture: { ...mp.fixture, date: formattedDate },
+                    fixture: {
+                      ...mp.fixture,
+                      id: Math.floor(1000000 + Math.random() * 9000000),
+                      date: formattedDate,
+                    },
                   };
                 })
               )
@@ -251,7 +260,11 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
 
                   return {
                     ...mp,
-                    fixture: { ...mp.fixture, date: formattedDate },
+                    fixture: {
+                      ...mp.fixture,
+                      id: Math.floor(1000000 + Math.random() * 9000000),
+                      date: formattedDate,
+                    },
                   };
                 })
               )
@@ -270,7 +283,11 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
 
                   return {
                     ...mp,
-                    fixture: { ...mp.fixture, date: formattedDate },
+                    fixture: {
+                      ...mp.fixture,
+                      id: Math.floor(1000000 + Math.random() * 9000000),
+                      date: formattedDate,
+                    },
                   };
                 })
               )
@@ -289,7 +306,11 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
 
                   return {
                     ...mp,
-                    fixture: { ...mp.fixture, date: formattedDate },
+                    fixture: {
+                      ...mp.fixture,
+                      id: Math.floor(1000000 + Math.random() * 9000000),
+                      date: formattedDate,
+                    },
                   };
                 })
               )
