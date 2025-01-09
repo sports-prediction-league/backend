@@ -63,7 +63,6 @@ const register_scores = async (scores, callback) => {
 
 const execute_contract_call = async (call) => {
   try {
-    console.log({ call });
     if (!call) {
       return { success: false, data: {}, message: "Invalid call" };
     }
@@ -80,12 +79,6 @@ const execute_contract_call = async (call) => {
       return { success: false, data: {}, message: "Invalid call" };
     }
 
-    if (
-      call.contractAddress !==
-      "0x0312ae428d2bd7d3189145b5a77e890bd6934c2fae2f5ca0b9c00ea68f143a63"
-    ) {
-      return { success: false, data: {}, message: "Invalid call" };
-    }
     if (call.calldata[5] !== CallData.compile([CONTRACT_ADDRESS])[0]) {
       return { success: false, data: {}, message: "Invalid call" };
     }
