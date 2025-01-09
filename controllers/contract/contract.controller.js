@@ -63,6 +63,7 @@ const register_scores = async (scores, callback) => {
 
 const execute_contract_call = async (call) => {
   try {
+    console.log({ call });
     if (!call) {
       return { success: false, data: {}, message: "Invalid call" };
     }
