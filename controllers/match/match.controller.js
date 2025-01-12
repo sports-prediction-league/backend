@@ -4,6 +4,52 @@ const { cairo } = require("starknet");
 const { get_current_round } = require("../contract/contract.controller");
 const { Op } = require("sequelize");
 const dummyMatches = require("./dummy_match.json");
+
+const format_match_data = (match) => {
+  const home_team = match.sport_event.competitors.find(
+    (fd) => fd.qualifier === "home"
+  );
+  const away_team = match.sport_event.competitors.find(
+    (fd) => fd.qualifier === "away"
+  );
+
+  if (home_team && away_team) {
+    return {
+      success: true,
+      match: {
+        fixture: {
+          id: match.sport_event.id.split(":").pop(),
+          date: match.sport_event.start_time,
+          status: {
+            long: "Not started",
+            short: "NS",
+          },
+        },
+        league: {
+          id: match.sport_event.sport_event_context.competition.id
+            .split(":")
+            .pop(),
+          name: match.sport_event.sport_event_context.competition.name,
+          season: match.sport_event.sport_event_context.season,
+          round: match.sport_event.sport_event_context.round.number,
+        },
+        teams: {
+          home: {
+            id: home_team.id.split(":").pop(),
+            name: home_team.name,
+          },
+          away: {
+            id: away_team.id.split(":").pop(),
+            name: away_team.name,
+          },
+        },
+      },
+    };
+  }
+
+  return { success: false, match: null };
+};
+
 const groupByUTCHours = (
   arr,
   startHourUTC = 10,
@@ -61,30 +107,35 @@ const groupByUTCHours = (
 
   // Group the objects by the UTC hour of their fixture date
   for (const item of arr) {
-    const date = new Date(item.fixture.date); // Access the date field
+    const date = new Date(item.sport_event.start_time); // Access the date field
     const utcHours = date.getUTCHours();
 
     // Prioritize items where the team names match any in the prioritizedTeamNames array
-    if (
-      (prioritizedTeamNames.includes(
-        item?.teams?.home?.name?.toLowerCase()?.trim()
-      ) ||
-        prioritizedTeamNames.includes(
-          item?.teams?.away?.name?.toLowerCase()?.trim()
-        )) &&
-      item?.fixture?.status?.short === "NS"
-    ) {
-      prioritizedItems.push(item); // Add to prioritized list regardless of time range
+
+    // for (let i = 0; i < item.sport_event.conpetitors.length; i++) {
+    //   const competitor = item.sport_event.conpetitors[i];
+    //   if(prio)
+
+    // }
+
+    // dummyMatches.schedules[0].sport_event_status.
+
+    const exists = item.sport_event.competitors.some((competitor) =>
+      prioritizedTeamNames.includes(competitor)
+    );
+
+    if (exists && item.sport_event_status.match_status === "not_started") {
+      prioritizedItems.push(format_match_data(item).match);
     } else if (
       utcHours >= startHourUTC &&
       utcHours < endHourUTC &&
-      item?.fixture?.status?.short === "NS"
+      item.sport_event_status.match_status === "not_started"
     ) {
       // If this hour doesn't have a group yet, initialize it
       if (!groupedByHour[utcHours]) {
         groupedByHour[utcHours] = [];
       }
-      groupedByHour[utcHours].push(item); // Push the entire object, not just the date
+      groupedByHour[utcHours].push(format_match_data(item).match); // Push the entire object, not just the date
     }
   }
 
@@ -130,21 +181,12 @@ const formatDateFromString = (dateString) => {
 
 async function get_api_matches(date) {
   try {
-    const FIXTURE_API = process.env.FIXTURE_API;
-    const FIXTURE_API_KEY = process.env.FIXTURE_API_KEY;
-    const options = {
-      method: "GET",
-      url: `${FIXTURE_API}/fixtures`,
-      params: {
-        date: formatDateFromString(date.trim()),
-      },
-      headers: {
-        "x-rapidapi-host": FIXTURE_API,
-        "x-rapidapi-key": FIXTURE_API_KEY,
-      },
-    };
-
-    const response = await axios.request(options);
+    const SPORT_RADAR_API_KEY = process.env.SPORT_RADAR_API_KEY;
+    const response = await axios.get(
+      `https://api.sportradar.com/soccer-extended/trial/v4/en/schedules/${formatDateFromString(
+        date.trim()
+      )}/schedules.json?api_key=${SPORT_RADAR_API_KEY}`
+    );
     return response;
   } catch (error) {
     throw error;
@@ -183,164 +225,164 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
       ? getFutureDays(5, last_match.date)
       : getFutureDays(5, null);
     ///REAL
-    // const [response1, response2, response3, response4, response5] =
-    //   await Promise.all([
-    //     get_api_matches(futureDays[0]),
-    //     get_api_matches(futureDays[1]),
-    //     get_api_matches(futureDays[2]),
-    //     get_api_matches(futureDays[3]),
-    //     get_api_matches(futureDays[4]),
-    //   ]);
+    const [response1, response2, response3, response4, response5] =
+      await Promise.all([
+        get_api_matches(futureDays[0]),
+        // get_api_matches(futureDays[1]),
+        // get_api_matches(futureDays[2]),
+        // get_api_matches(futureDays[3]),
+        // get_api_matches(futureDays[4]),
+      ]);
     /// TEST
-    const { response1, response2, response3, response4, response5 } =
-      dummyMatches;
+    // const { response1, response2, response3, response4, response5 } =
+    //   dummyMatches;
 
     /// TEST
-    const response = {
-      data: {
-        response: [
-          ...(response1.length
-            ? groupByUTCHours(
-                response1.map((mp, index) => {
-                  const baseDate = new Date();
-                  baseDate.setHours(baseDate.getHours() + 1);
-
-                  // Add extra minutes based on the index
-                  baseDate.setMinutes(baseDate.getMinutes() + index);
-
-                  // Format the date to ISO string with time zone
-                  const formattedDate = baseDate.toISOString();
-
-                  return {
-                    ...mp,
-
-                    fixture: {
-                      ...mp.fixture,
-                      id: Math.floor(1000000 + Math.random() * 9000000),
-                      date: formattedDate,
-                    },
-                  };
-                })
-              )
-            : []),
-          ...(response2.length
-            ? groupByUTCHours(
-                response2.map((mp, index) => {
-                  const baseDate = new Date();
-                  baseDate.setHours(baseDate.getHours() + 1);
-
-                  // Add extra minutes based on the index
-                  baseDate.setMinutes(baseDate.getMinutes() + index);
-
-                  // Format the date to ISO string with time zone
-                  const formattedDate = baseDate.toISOString();
-
-                  return {
-                    ...mp,
-                    fixture: {
-                      ...mp.fixture,
-                      id: Math.floor(1000000 + Math.random() * 9000000),
-                      date: formattedDate,
-                    },
-                  };
-                })
-              )
-            : []),
-          ...(response3.length
-            ? groupByUTCHours(
-                response3.map((mp, index) => {
-                  const baseDate = new Date();
-                  baseDate.setHours(baseDate.getHours() + 1);
-
-                  // Add extra minutes based on the index
-                  baseDate.setMinutes(baseDate.getMinutes() + index);
-
-                  // Format the date to ISO string with time zone
-                  const formattedDate = baseDate.toISOString();
-
-                  return {
-                    ...mp,
-                    fixture: {
-                      ...mp.fixture,
-                      id: Math.floor(1000000 + Math.random() * 9000000),
-                      date: formattedDate,
-                    },
-                  };
-                })
-              )
-            : []),
-          ...(response4.length
-            ? groupByUTCHours(
-                response4.map((mp, index) => {
-                  const baseDate = new Date();
-                  baseDate.setHours(baseDate.getHours() + 1);
-
-                  // Add extra minutes based on the index
-                  baseDate.setMinutes(baseDate.getMinutes() + index);
-
-                  // Format the date to ISO string with time zone
-                  const formattedDate = baseDate.toISOString();
-
-                  return {
-                    ...mp,
-                    fixture: {
-                      ...mp.fixture,
-                      id: Math.floor(1000000 + Math.random() * 9000000),
-                      date: formattedDate,
-                    },
-                  };
-                })
-              )
-            : []),
-          ...(response5.length
-            ? groupByUTCHours(
-                response5.map((mp, index) => {
-                  const baseDate = new Date();
-                  baseDate.setHours(baseDate.getHours() + 1);
-
-                  // Add extra minutes based on the index
-                  baseDate.setMinutes(baseDate.getMinutes() + index);
-
-                  // Format the date to ISO string with time zone
-                  const formattedDate = baseDate.toISOString();
-
-                  return {
-                    ...mp,
-                    fixture: {
-                      ...mp.fixture,
-                      id: Math.floor(1000000 + Math.random() * 9000000),
-                      date: formattedDate,
-                    },
-                  };
-                })
-              )
-            : []),
-        ],
-      },
-    };
-
-    ///REAL
     // const response = {
     //   data: {
     //     response: [
-    //       ...(response1.data.response?.length
-    //         ? groupByUTCHours(response1.data.response)
+    //       ...(response1.length
+    //         ? groupByUTCHours(
+    //             response1.map((mp, index) => {
+    //               const baseDate = new Date();
+    //               baseDate.setHours(baseDate.getHours() + 1);
+
+    //               // Add extra minutes based on the index
+    //               baseDate.setMinutes(baseDate.getMinutes() + index);
+
+    //               // Format the date to ISO string with time zone
+    //               const formattedDate = baseDate.toISOString();
+
+    //               return {
+    //                 ...mp,
+
+    //                 fixture: {
+    //                   ...mp.fixture,
+    //                   id: Math.floor(1000000 + Math.random() * 9000000),
+    //                   date: formattedDate,
+    //                 },
+    //               };
+    //             })
+    //           )
     //         : []),
-    //       ...(response2.data.response?.length
-    //         ? groupByUTCHours(response2.data.response)
+    //       ...(response2.length
+    //         ? groupByUTCHours(
+    //             response2.map((mp, index) => {
+    //               const baseDate = new Date();
+    //               baseDate.setHours(baseDate.getHours() + 1);
+
+    //               // Add extra minutes based on the index
+    //               baseDate.setMinutes(baseDate.getMinutes() + index);
+
+    //               // Format the date to ISO string with time zone
+    //               const formattedDate = baseDate.toISOString();
+
+    //               return {
+    //                 ...mp,
+    //                 fixture: {
+    //                   ...mp.fixture,
+    //                   id: Math.floor(1000000 + Math.random() * 9000000),
+    //                   date: formattedDate,
+    //                 },
+    //               };
+    //             })
+    //           )
     //         : []),
-    //       ...(response3.data.response?.length
-    //         ? groupByUTCHours(response3.data.response)
+    //       ...(response3.length
+    //         ? groupByUTCHours(
+    //             response3.map((mp, index) => {
+    //               const baseDate = new Date();
+    //               baseDate.setHours(baseDate.getHours() + 1);
+
+    //               // Add extra minutes based on the index
+    //               baseDate.setMinutes(baseDate.getMinutes() + index);
+
+    //               // Format the date to ISO string with time zone
+    //               const formattedDate = baseDate.toISOString();
+
+    //               return {
+    //                 ...mp,
+    //                 fixture: {
+    //                   ...mp.fixture,
+    //                   id: Math.floor(1000000 + Math.random() * 9000000),
+    //                   date: formattedDate,
+    //                 },
+    //               };
+    //             })
+    //           )
     //         : []),
-    //       ...(response4.data.response?.length
-    //         ? groupByUTCHours(response4.data.response)
+    //       ...(response4.length
+    //         ? groupByUTCHours(
+    //             response4.map((mp, index) => {
+    //               const baseDate = new Date();
+    //               baseDate.setHours(baseDate.getHours() + 1);
+
+    //               // Add extra minutes based on the index
+    //               baseDate.setMinutes(baseDate.getMinutes() + index);
+
+    //               // Format the date to ISO string with time zone
+    //               const formattedDate = baseDate.toISOString();
+
+    //               return {
+    //                 ...mp,
+    //                 fixture: {
+    //                   ...mp.fixture,
+    //                   id: Math.floor(1000000 + Math.random() * 9000000),
+    //                   date: formattedDate,
+    //                 },
+    //               };
+    //             })
+    //           )
     //         : []),
-    //       ...(response5.data.response?.length
-    //         ? response5.data.response.slice(-10)
+    //       ...(response5.length
+    //         ? groupByUTCHours(
+    //             response5.map((mp, index) => {
+    //               const baseDate = new Date();
+    //               baseDate.setHours(baseDate.getHours() + 1);
+
+    //               // Add extra minutes based on the index
+    //               baseDate.setMinutes(baseDate.getMinutes() + index);
+
+    //               // Format the date to ISO string with time zone
+    //               const formattedDate = baseDate.toISOString();
+
+    //               return {
+    //                 ...mp,
+    //                 fixture: {
+    //                   ...mp.fixture,
+    //                   id: Math.floor(1000000 + Math.random() * 9000000),
+    //                   date: formattedDate,
+    //                 },
+    //               };
+    //             })
+    //           )
     //         : []),
     //     ],
     //   },
     // };
+
+    ///REAL
+    const response = {
+      data: {
+        response: [
+          ...(response1.data.schedules?.length
+            ? groupByUTCHours(response1.data.schedules)
+            : []),
+          // ...(response2.data.schedules?.length
+          //   ? groupByUTCHours(response2.data.schedules)
+          //   : []),
+          // ...(response3.data.schedules?.length
+          //   ? groupByUTCHours(response3.data.schedules)
+          //   : []),
+          // ...(response4.data.schedules?.length
+          //   ? groupByUTCHours(response4.data.schedules)
+          //   : []),
+          // ...(response5.data.schedules?.length
+          //   ? groupByUTCHours(response5.data.schedules)
+          //   : []),
+        ],
+      },
+    };
 
     let structure = [];
 

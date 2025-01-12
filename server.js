@@ -198,6 +198,41 @@ function handle_callback(payload) {
   // );
 }
 
+async function handle_set_matches() {
+  try {
+    let is_match_commited = false;
+
+    const match_transaction = await sequelize.transaction();
+    const current_round = await get_current_round();
+    const converted_round = Number(current_round);
+    await set_next_matches(
+      match_transaction,
+      async (payload) => {
+        handle_callback(payload);
+        if (payload.success) {
+          if (payload.data.length) {
+            const success = await register_matches(
+              payload.data,
+              handle_callback
+            );
+            if (success) {
+              await match_transaction.commit();
+              is_match_commited = true;
+            }
+          }
+        }
+      },
+      converted_round
+    );
+  } catch (error) {
+    console.log(error);
+    handle_callback({ success: false, msg: error, data: {} });
+    if (!is_match_commited) {
+      await match_transaction.rollback();
+    }
+  }
+}
+
 async function handle_cron() {
   const score_transaction = await sequelize.transaction();
   const match_transaction = await sequelize.transaction();
@@ -270,7 +305,7 @@ bot.onText(/\/set_matches/, async (msg) => {
       bot.sendMessage(msg.chat.id, "UNAUTHORIZED!");
       return;
     }
-    await handle_cron();
+    await handle_set_matches();
   } catch (error) {
     bot.sendMessage(msg.chat.id, "AN ERROR OCCURED. PLS TRY AGAIN");
   }
