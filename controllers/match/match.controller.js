@@ -236,7 +236,9 @@ exports.update_past_or_current_matches = async () => {
     for (let i = 0; i < matches.length; i++) {
       const match = matches[i];
       const response = await get_api_matches_by_id(match.id);
-      const { match_response, success } = format_match_data(response.data);
+      const { match: match_response, success } = format_match_data(
+        response.data
+      );
       if (success) {
         if (match_response.fixture.status.match_status === "ended") {
           ended_matches.push({
