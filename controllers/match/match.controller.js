@@ -240,6 +240,7 @@ exports.update_past_or_current_matches = async () => {
         response.data
       );
       if (success) {
+        console.log(match.dataValues);
         if (match_response.fixture.status.match_status === "ended") {
           ended_matches.push({
             inputed: true,
