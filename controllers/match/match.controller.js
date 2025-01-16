@@ -340,6 +340,7 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
         // get_api_matches_by_date(futureDays[3]),
         // get_api_matches_by_date(futureDays[4]),
       ]);
+
     /// TEST
     // const { response1, response2, response3, response4, response5 } =
     //   dummyMatches;
@@ -467,6 +468,8 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
     //     ],
     //   },
     // };
+
+    console.log(response1.data);
 
     ///REAL
     const response = {
