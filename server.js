@@ -15,6 +15,7 @@ const {
   set_next_matches,
   set_scores,
   get_matches,
+  update_past_or_current_matches,
 } = require("./controllers/match/match.controller");
 const {
   parse_data_into_table_structure,
@@ -327,6 +328,11 @@ bot.onText(/\/set_matches/, async (msg) => {
 //     timezone: "UTC", // Ensure the timezone is set to UTC
 //   }
 // );
+
+cron.schedule("*/10 * * * *", async () => {
+  console.log("Task is running every 10 minutes!");
+  await update_past_or_current_matches();
+});
 
 app.get("/", (_, res) => {
   res.status(200).send("server running successfully");
