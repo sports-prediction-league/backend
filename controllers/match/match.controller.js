@@ -234,7 +234,7 @@ exports.update_past_or_current_matches = async () => {
     let ended_matches = [];
     let updated_matches = [];
 
-    console.log(matches);
+    console.log(matches.map((mp) => mp.dataValues));
 
     for (let i = 0; i < matches.length; i++) {
       const match = matches[i];
