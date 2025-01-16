@@ -155,9 +155,9 @@ const groupByUTCHours = (
   // Add prioritized items first, but limit the total results to the given limit
   for (const item of prioritizedItems) {
     result.push(item);
-    if (result.length === limit) {
-      return result; // Stop if we reach the limit
-    }
+    // if (result.length === limit) {
+    //   return result; // Stop if we reach the limit
+    // }
   }
 
   // Randomly pick items from each hour group until we have the limit
@@ -234,7 +234,7 @@ exports.update_past_or_current_matches = async () => {
     let ended_matches = [];
     let updated_matches = [];
 
-    console.log(matches.map((mp) => mp.dataValues));
+    // console.log(matches.map((mp) => mp.dataValues));
 
     for (let i = 0; i < matches.length; i++) {
       const match = matches[i];
@@ -493,7 +493,7 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
         ],
       },
     };
-    console.log(JSON.stringify(response.data.response));
+    // console.log(JSON.stringify(response.data.response));
     let structure = [];
 
     if (response.data?.response?.length) {
