@@ -232,6 +232,7 @@ exports.update_past_or_current_matches = async () => {
       },
     });
     let ended_matches = [];
+    let updated_matches = [];
 
     for (let i = 0; i < matches.length; i++) {
       const match = matches[i];
@@ -240,7 +241,6 @@ exports.update_past_or_current_matches = async () => {
         response.data
       );
       if (success) {
-        console.log(match_response);
         if (match_response.fixture.status.match_status === "ended") {
           ended_matches.push({
             inputed: true,
@@ -262,23 +262,31 @@ exports.update_past_or_current_matches = async () => {
             transaction,
           }
         );
+        updated_matches.push(match);
         if (!signed_db_tx) {
           signed_db_tx = true;
         }
       }
     }
 
+    let should_return = false;
+
     await register_scores(ended_matches, async (callback) => {
       if (callback?.success) {
         if (signed_db_tx) {
           await transaction.commit();
         }
+        should_return = true;
       } else {
         if (signed_db_tx) {
           await transaction.rollback();
         }
       }
     });
+
+    if (should_return) {
+      return updated_matches;
+    }
   } catch (error) {
     console.log(error);
     if (signed_db_tx) {
