@@ -469,7 +469,7 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
     //   },
     // };
 
-    console.log(response1.data);
+    // console.log(response1.data);
 
     ///REAL
     const response = {
@@ -493,7 +493,7 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
         ],
       },
     };
-
+    console.log(JSON.stringify(response.data.response));
     let structure = [];
 
     if (response.data?.response?.length) {
