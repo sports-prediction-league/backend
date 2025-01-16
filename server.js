@@ -4,6 +4,7 @@ const express = require("express");
 const TelegramBot = require("node-telegram-bot-api");
 const { sequelize, Status } = require("./models");
 const cors = require("cors");
+const http = require("http");
 const morgan = require("morgan");
 const {
   get_profile_pic,
@@ -21,6 +22,7 @@ const {
   parse_data_into_table_structure,
   feltToString,
 } = require("./helpers/helpers");
+const ServerSocket = require("./socket/socket");
 const {
   register_matches,
   get_current_round,
@@ -329,18 +331,29 @@ bot.onText(/\/set_matches/, async (msg) => {
 //   }
 // );
 
-cron.schedule("*/10 * * * *", async () => {
-  console.log("Task is running every 10 minutes!");
-  await update_past_or_current_matches();
-});
-
 app.get("/", (_, res) => {
   res.status(200).send("server running successfully");
 });
 
 app.get("/matches", get_matches);
 
-const server = app;
+const server = http.createServer(app, {
+  cors: {
+    origin: "*",
+  },
+});
+
+const socket = new ServerSocket(server);
+
+cron.schedule("*/10 * * * *", async () => {
+  console.log("Task is running every 10 minutes!");
+  const updated_matches = await update_past_or_current_matches();
+  if (updated_matches) {
+    socket.io.emit("update-matches", updated_matches);
+  }
+});
+
+// const server = app;
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, async () => {
   await sequelize.authenticate();
