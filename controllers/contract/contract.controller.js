@@ -95,7 +95,7 @@ const execute_contract_call = async (call) => {
 
 const deploy_account = async (account_payload) => {
   try {
-    if (!call) {
+    if (!account_payload) {
       return { success: false, data: {}, message: "Invalid call" };
     }
 

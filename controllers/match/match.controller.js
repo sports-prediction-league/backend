@@ -1,7 +1,10 @@
 const axios = require("axios");
-const { Match } = require("../../models");
+const { Match, sequelize } = require("../../models");
 const { cairo } = require("starknet");
-const { get_current_round } = require("../contract/contract.controller");
+const {
+  get_current_round,
+  register_scores,
+} = require("../contract/contract.controller");
 const { Op } = require("sequelize");
 const dummyMatches = require("./dummy_match.json");
 
@@ -21,8 +24,8 @@ const format_match_data = (match) => {
           id: match.sport_event.id.split(":").pop(),
           date: match.sport_event.start_time,
           status: {
-            long: "Not started",
-            short: "NS",
+            match_status: match.sport_event_status.match_status,
+            status: match.sport_event_status.status,
           },
         },
         league: {
@@ -33,6 +36,14 @@ const format_match_data = (match) => {
           season: match.sport_event.sport_event_context.season,
           round: match.sport_event.sport_event_context.round.number,
         },
+        goals:
+          match.sport_event_status.home_score ||
+          match.sport_event_status.away_score
+            ? {
+                home: match.sport_event_status.home_score,
+                away: match.sport_event_status.away_score,
+              }
+            : undefined,
         teams: {
           home: {
             id: home_team.id.split(":").pop(),
@@ -43,6 +54,8 @@ const format_match_data = (match) => {
             name: away_team.name,
           },
         },
+
+        statistics: match.statistics,
       },
     };
   }
@@ -179,7 +192,7 @@ const formatDateFromString = (dateString) => {
   return `${year}-${month}-${day}`;
 };
 
-async function get_api_matches(date) {
+async function get_api_matches_by_date(date) {
   try {
     const SPORT_RADAR_API_KEY = process.env.SPORT_RADAR_API_KEY;
     const response = await axios.get(
@@ -193,11 +206,90 @@ async function get_api_matches(date) {
   }
 }
 
+async function get_api_matches_by_id(id) {
+  try {
+    const SPORT_RADAR_API_KEY = process.env.SPORT_RADAR_API_KEY;
+    const response = await axios.get(
+      `https://api.sportradar.com/soccer-extended/trial/v4/en/sport_events/sr%3Asport_event%3A${id}/summary.json?api_key=${SPORT_RADAR_API_KEY}`
+    );
+    return response;
+  } catch (error) {
+    throw error;
+  }
+}
+
+exports.update_past_or_current_matches = async () => {
+  const transaction = await sequelize.transaction();
+  let signed_db_tx = false;
+  try {
+    const currentDateUtc = new Date().toISOString();
+    const matches = await Match.findAll({
+      where: {
+        scored: false,
+        date: {
+          [Op.lte]: currentDateUtc,
+        },
+      },
+    });
+    let ended_matches = [];
+
+    for (let i = 0; i < matches.length; i++) {
+      const match = matches[i];
+      const response = await get_api_matches_by_id(match.id);
+      const { match_response, success } = format_match_data(response.data);
+      if (success) {
+        if (match_response.fixture.status.match_status === "ended") {
+          ended_matches.push({
+            inputed: true,
+            match_id: match_response.fixture.id,
+            home: Number(match_response.goals?.home ?? 0),
+            away: Number(match_response.goals?.away ?? 0),
+          });
+        }
+        await match.update(
+          {
+            ...match,
+            details: match_response,
+            scored:
+              match_response.fixture.status.match_status === "ended"
+                ? true
+                : match.scored,
+          },
+          {
+            transaction,
+          }
+        );
+        if (!signed_db_tx) {
+          signed_db_tx = true;
+        }
+      }
+    }
+
+    await register_scores(ended_matches, async (callback) => {
+      if (callback?.success) {
+        if (signed_db_tx) {
+          await transaction.commit();
+        }
+      } else {
+        if (signed_db_tx) {
+          await transaction.rollback();
+        }
+      }
+    });
+  } catch (error) {
+    console.log(error);
+    if (signed_db_tx) {
+      await transaction.rollback();
+    }
+    throw error;
+  }
+};
+
 const getFutureDays = (numOfDays, start_date) => {
   const daysArray = [];
   const today = start_date ? new Date(start_date) : new Date();
 
-  for (let i = 1; i <= numOfDays; i++) {
+  for (let i = 0; i <= numOfDays; i++) {
     const futureDate = new Date(today);
     futureDate.setDate(today.getDate() + i); // Add i days to today's date
     daysArray.push(futureDate.toDateString()); // You can format this as you like
@@ -227,11 +319,11 @@ exports.set_next_matches = async (transaction, callback, current_round) => {
     ///REAL
     const [response1, response2, response3, response4, response5] =
       await Promise.all([
-        get_api_matches(futureDays[0]),
-        // get_api_matches(futureDays[1]),
-        // get_api_matches(futureDays[2]),
-        // get_api_matches(futureDays[3]),
-        // get_api_matches(futureDays[4]),
+        get_api_matches_by_date(futureDays[0]),
+        // get_api_matches_by_date(futureDays[1]),
+        // get_api_matches_by_date(futureDays[2]),
+        // get_api_matches_by_date(futureDays[3]),
+        // get_api_matches_by_date(futureDays[4]),
       ]);
     /// TEST
     // const { response1, response2, response3, response4, response5 } =
@@ -446,7 +538,9 @@ exports.set_scores = async (transaction, callback) => {
     let structure = [];
 
     if (matches.length) {
-      const response = await get_api_matches(matches[0].date.toString());
+      const response = await get_api_matches_by_date(
+        matches[0].date.toString()
+      );
       const api_matches = response.data?.response ?? [];
       for (let i = 0; i < matches.length; i++) {
         const match = matches[i];
