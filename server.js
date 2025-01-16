@@ -345,12 +345,24 @@ const server = http.createServer(app, {
 
 const socket = new ServerSocket(server);
 
-cron.schedule("*/10 * * * *", async () => {
+const job = cron.schedule("*/10 * * * *", async () => {
   console.log("Task is running every 10 minutes!");
   const updated_matches = await update_past_or_current_matches();
   if (updated_matches) {
     socket.io.emit("update-matches", updated_matches);
   }
+});
+
+process.on("SIGINT", () => {
+  console.log("Received SIGINT. Cleaning up...");
+  job.stop();
+  process.exit(0);
+});
+
+process.on("SIGTERM", () => {
+  console.log("Received SIGTERM. Cleaning up...");
+  job.stop();
+  process.exit(0);
 });
 
 // const server = app;
