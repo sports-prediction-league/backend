@@ -234,6 +234,8 @@ exports.update_past_or_current_matches = async () => {
     let ended_matches = [];
     let updated_matches = [];
 
+    console.log(matches);
+
     for (let i = 0; i < matches.length; i++) {
       const match = matches[i];
       const response = await get_api_matches_by_id(match.id);
@@ -269,20 +271,22 @@ exports.update_past_or_current_matches = async () => {
       }
     }
 
-    let should_return = false;
+    let should_return = true;
 
-    await register_scores(ended_matches, async (callback) => {
-      if (callback?.success) {
-        if (signed_db_tx) {
-          await transaction.commit();
+    if (ended_matches.length) {
+      await register_scores(ended_matches, async (callback) => {
+        if (callback?.success) {
+          if (signed_db_tx) {
+            await transaction.commit();
+          }
+        } else {
+          if (signed_db_tx) {
+            await transaction.rollback();
+            should_return = false;
+          }
         }
-        should_return = true;
-      } else {
-        if (signed_db_tx) {
-          await transaction.rollback();
-        }
-      }
-    });
+      });
+    }
 
     if (should_return) {
       return updated_matches;
