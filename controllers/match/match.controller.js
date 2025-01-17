@@ -138,7 +138,11 @@ const groupByUTCHours = (
       prioritizedTeamNames.includes(competitor)
     );
 
-    if (exists && item.sport_event_status.match_status === "not_started") {
+    if (
+      exists &&
+      item.sport_event_status.match_status === "not_started" &&
+      item.sport_event.start_time_confirmed
+    ) {
       prioritizedItems.push(format_match_data(item).match);
     } else if (
       utcHours >= startHourUTC &&
