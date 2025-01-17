@@ -1,5 +1,6 @@
 require("dotenv").config({ path: "./.env" });
 const cron = require("node-cron");
+const redisClient = require("redis").createClient();
 const express = require("express");
 const TelegramBot = require("node-telegram-bot-api");
 const { sequelize, Status } = require("./models");
@@ -345,17 +346,15 @@ const server = http.createServer(app, {
 
 const socket = new ServerSocket(server);
 
-// Flag to prevent overlapping jobs
-let isRunning = false;
-
 const job = cron.schedule("*/10 * * * *", async () => {
+  const isRunning = await redisClient.get("cron-job-isRunning");
   if (isRunning) {
     console.log("Previous job still running, skipping this iteration.");
     return;
   }
-  isRunning = true;
-  console.log("Task is running every 10 minutes!");
   try {
+    await redisClient.set("cron-job-isRunning", "true", { EX: 600 }); // Auto-expire after 10 minutes
+    console.log("Task is running every 10 minutes!");
     const updated_matches = await update_past_or_current_matches();
     if (updated_matches) {
       socket.io.emit("update-matches", updated_matches);
@@ -363,13 +362,14 @@ const job = cron.schedule("*/10 * * * *", async () => {
   } catch (error) {
     console.error("Error in cron job:", error);
   } finally {
-    isRunning = false;
+    await redisClient.del("cron-job-isRunning");
   }
 });
 
 // Graceful Shutdown
 const cleanup = async () => {
   console.log("Cleaning up resources...");
+  await redisClient.del("cron-job-isRunning");
   job.stop();
   await sequelize.close();
   socket.io.close();
