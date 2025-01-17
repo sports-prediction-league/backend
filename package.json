@@ -21,7 +21,9 @@
     "node-telegram-bot-api": "^0.66.0",
     "pg": "^8.13.0",
     "pg-hstore": "^2.3.4",
+    "redis": "^4.7.0",
     "sequelize": "^6.37.4",
+    "socket.io": "^4.8.1",
     "sqlite3": "^5.1.7",
     "starknet": "^6.11.0"
   },

@@ -1,24 +1,29 @@
 require("dotenv").config({ path: "./.env" });
 const cron = require("node-cron");
+const redisClient = require("redis").createClient();
 const express = require("express");
 const TelegramBot = require("node-telegram-bot-api");
 const { sequelize, Status } = require("./models");
 const cors = require("cors");
+const http = require("http");
 const morgan = require("morgan");
 const {
   get_profile_pic,
   register_user,
   get_leaderboard_images,
+  get_user_by_id,
 } = require("./controllers/user/user.controller");
 const {
   set_next_matches,
   set_scores,
   get_matches,
+  update_past_or_current_matches,
 } = require("./controllers/match/match.controller");
 const {
   parse_data_into_table_structure,
   feltToString,
 } = require("./helpers/helpers");
+const ServerSocket = require("./socket/socket");
 const {
   register_matches,
   get_current_round,
@@ -26,7 +31,8 @@ const {
   get_user_points,
   get_first_position,
   execute_contract_call,
-} = require("./controllers/controller/contract.controller");
+  deploy_account,
+} = require("./controllers/contract/contract.controller");
 
 const BOT_TOKEN =
   process.env.NODE_ENV === "production"
@@ -79,6 +85,31 @@ app.get("/leaderboard_images", get_leaderboard_images);
 app.post("/execute", async (req, res) => {
   try {
     const tx = await execute_contract_call(req.body);
+    res.status(200).send(tx);
+  } catch (error) {
+    res
+      .status(500)
+      .send({ success: false, message: "Internal server error", data: {} });
+  }
+});
+
+app.post("/deploy-account", async (req, res) => {
+  try {
+    const { account_payload, user_id } = req.body;
+    if (!account_payload || !user_id) {
+      res
+        .status(400)
+        .send({ success: false, message: "Invalid payload", data: {} });
+      return;
+    }
+    const user = await get_user_by_id(user_id);
+    if (!user) {
+      res
+        .status(400)
+        .send({ success: false, message: "Invalid user", data: {} });
+      return;
+    }
+    const tx = await deploy_account(req.body.account_payload);
     res.status(200).send(tx);
   } catch (error) {
     res
@@ -171,6 +202,41 @@ function handle_callback(payload) {
   // );
 }
 
+async function handle_set_matches() {
+  try {
+    let is_match_commited = false;
+
+    const match_transaction = await sequelize.transaction();
+    const current_round = await get_current_round();
+    const converted_round = Number(current_round);
+    await set_next_matches(
+      match_transaction,
+      async (payload) => {
+        handle_callback(payload);
+        if (payload.success) {
+          if (payload.data.length) {
+            const success = await register_matches(
+              payload.data,
+              handle_callback
+            );
+            if (success) {
+              await match_transaction.commit();
+              is_match_commited = true;
+            }
+          }
+        }
+      },
+      converted_round
+    );
+  } catch (error) {
+    console.log(error);
+    handle_callback({ success: false, msg: error, data: {} });
+    if (!is_match_commited) {
+      await match_transaction.rollback();
+    }
+  }
+}
+
 async function handle_cron() {
   const score_transaction = await sequelize.transaction();
   const match_transaction = await sequelize.transaction();
@@ -243,7 +309,7 @@ bot.onText(/\/set_matches/, async (msg) => {
       bot.sendMessage(msg.chat.id, "UNAUTHORIZED!");
       return;
     }
-    await handle_cron();
+    await handle_set_matches();
   } catch (error) {
     bot.sendMessage(msg.chat.id, "AN ERROR OCCURED. PLS TRY AGAIN");
   }
@@ -256,15 +322,15 @@ bot.onText(/\/set_matches/, async (msg) => {
 // });
 
 // Schedule the cron job for 12 AM UTC every day
-cron.schedule(
-  "0 0 * * *",
-  async () => {
-    await handle_cron();
-  },
-  {
-    timezone: "UTC", // Ensure the timezone is set to UTC
-  }
-);
+// cron.schedule(
+//   "0 0 * * *",
+//   async () => {
+//     await handle_cron();
+//   },
+//   {
+//     timezone: "UTC", // Ensure the timezone is set to UTC
+//   }
+// );
 
 app.get("/", (_, res) => {
   res.status(200).send("server running successfully");
@@ -272,7 +338,76 @@ app.get("/", (_, res) => {
 
 app.get("/matches", get_matches);
 
-const server = app;
+const server = http.createServer(app, {
+  cors: {
+    origin: "*",
+  },
+});
+
+const socket = new ServerSocket(server);
+
+let isRunning = false;
+
+const task = async () => {
+  if (isRunning) {
+    console.log("Previous task still running, skipping this iteration.");
+    return;
+  }
+  isRunning = true;
+  console.log("Task started at:", new Date().toISOString());
+
+  try {
+    const updated_matches = await update_past_or_current_matches();
+    if (updated_matches.length) {
+      socket.io.emit("update-matches", updated_matches);
+    }
+  } catch (error) {
+    console.error("Error during task execution:", error);
+  } finally {
+    isRunning = false;
+    console.log("Task completed at:", new Date().toISOString());
+  }
+};
+
+// Run the task every 10 minutes
+const interval = 10 * 60 * 1000; // 10 minutes in milliseconds
+const job = setInterval(task, interval);
+
+// const job = cron.schedule("*/10 * * * *", async () => {
+//   const isRunning = await redisClient.get("cron-job-isRunning");
+//   if (isRunning) {
+//     console.log("Previous job still running, skipping this iteration.");
+//     return;
+//   }
+//   try {
+//     await redisClient.set("cron-job-isRunning", "true", { EX: 600 }); // Auto-expire after 10 minutes
+//     console.log("Task is running every 10 minutes!");
+//     const updated_matches = await update_past_or_current_matches();
+//     if (updated_matches) {
+//       socket.io.emit("update-matches", updated_matches);
+//     }
+//   } catch (error) {
+//     console.error("Error in cron job:", error);
+//   } finally {
+//     await redisClient.del("cron-job-isRunning");
+//   }
+// });
+
+// Graceful Shutdown
+const cleanup = async () => {
+  console.log("Cleaning up resources...");
+  // await redisClient.del("cron-job-isRunning");
+  clearInterval(job);
+  await sequelize.close();
+  socket.io.close();
+  process.exit(0);
+};
+
+process.on("SIGINT", cleanup);
+
+process.on("SIGTERM", cleanup);
+
+// const server = app;
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, async () => {
   await sequelize.authenticate();
