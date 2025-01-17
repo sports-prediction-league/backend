@@ -58,6 +58,18 @@
   },
   {
     "type": "struct",
+    "name": "contract::Reward",
+    "members": [
+      { "name": "inputed", "type": "core::bool" },
+      {
+        "name": "user",
+        "type": "core::starknet::contract_address::ContractAddress"
+      },
+      { "name": "reward", "type": "core::integer::u256" }
+    ]
+  },
+  {
+    "type": "struct",
     "name": "contract::Prediction",
     "members": [
       { "name": "inputed", "type": "core::bool" },
@@ -73,6 +85,25 @@
     "variants": [
       { "name": "Some", "type": "contract::Leaderboard" },
       { "name": "None", "type": "()" }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "contract::PredictionDetails",
+    "members": [
+      { "name": "user", "type": "contract::User" },
+      { "name": "prediction", "type": "contract::Prediction" }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "contract::MatchPrediction",
+    "members": [
+      {
+        "name": "predictions",
+        "type": "core::array::Array::<contract::PredictionDetails>"
+      },
+      { "name": "match_pool", "type": "core::integer::u256" }
     ]
   },
   {
@@ -164,6 +195,10 @@
           {
             "name": "scores",
             "type": "core::array::Array::<contract::Score>"
+          },
+          {
+            "name": "rewards",
+            "type": "core::array::Array::<contract::Reward>"
           }
         ],
         "outputs": [],
@@ -259,6 +294,32 @@
         ],
         "outputs": [],
         "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "get_match_predictions",
+        "inputs": [{ "name": "match_id", "type": "core::felt252" }],
+        "outputs": [{ "type": "contract::MatchPrediction" }],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "claim_reward",
+        "inputs": [],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
+        "name": "get_user_reward",
+        "inputs": [
+          {
+            "name": "user",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [{ "type": "core::integer::u256" }],
+        "state_mutability": "view"
       }
     ]
   },

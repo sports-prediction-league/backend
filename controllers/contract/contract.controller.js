@@ -44,19 +44,17 @@ const register_matches = async (matches, callback) => {
   }
 };
 
-const register_scores = async (scores, callback) => {
+const register_scores = async (scores, rewards, callback) => {
   try {
     const contract = get_contract_instance();
     if (!contract) {
       throw new Error("Contract instance not set");
     }
-
-    const tx = await contract.set_scores(scores);
+    const tx = await contract.set_scores(scores, rewards);
 
     callback({ success: true, msg: "Scores set", data: tx });
     return true;
   } catch (error) {
-    // await callback({ success: false, msg: error, data: {} });
     throw error;
   }
 };
@@ -128,6 +126,16 @@ const get_user_points = async (id) => {
   }
 };
 
+const get_match_predictions = async (id) => {
+  try {
+    const contract = get_contract_instance();
+    const result = await contract.get_match_predictions(cairo.felt(id));
+    return result;
+  } catch (error) {
+    throw error;
+  }
+};
+
 const get_first_position = async () => {
   try {
     const contract = get_contract_instance();
@@ -146,4 +154,5 @@ module.exports = {
   get_user_points,
   execute_contract_call,
   deploy_account,
+  get_match_predictions,
 };
