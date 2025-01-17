@@ -345,25 +345,40 @@ const server = http.createServer(app, {
 
 const socket = new ServerSocket(server);
 
+// Flag to prevent overlapping jobs
+let isRunning = false;
+
 const job = cron.schedule("*/10 * * * *", async () => {
+  if (isRunning) {
+    console.log("Previous job still running, skipping this iteration.");
+    return;
+  }
+  isRunning = true;
   console.log("Task is running every 10 minutes!");
-  const updated_matches = await update_past_or_current_matches();
-  if (updated_matches) {
-    socket.io.emit("update-matches", updated_matches);
+  try {
+    const updated_matches = await update_past_or_current_matches();
+    if (updated_matches) {
+      socket.io.emit("update-matches", updated_matches);
+    }
+  } catch (error) {
+    console.error("Error in cron job:", error);
+  } finally {
+    isRunning = false;
   }
 });
 
-process.on("SIGINT", () => {
-  console.log("Received SIGINT. Cleaning up...");
+// Graceful Shutdown
+const cleanup = async () => {
+  console.log("Cleaning up resources...");
   job.stop();
+  await sequelize.close();
+  socket.io.close();
   process.exit(0);
-});
+};
 
-process.on("SIGTERM", () => {
-  console.log("Received SIGTERM. Cleaning up...");
-  job.stop();
-  process.exit(0);
-});
+process.on("SIGINT", cleanup);
+
+process.on("SIGTERM", cleanup);
 
 // const server = app;
 const PORT = process.env.PORT || 5000;
