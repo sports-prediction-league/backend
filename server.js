@@ -346,31 +346,58 @@ const server = http.createServer(app, {
 
 const socket = new ServerSocket(server);
 
-const job = cron.schedule("*/10 * * * *", async () => {
-  const isRunning = await redisClient.get("cron-job-isRunning");
+let isRunning = false;
+
+const task = async () => {
   if (isRunning) {
-    console.log("Previous job still running, skipping this iteration.");
+    console.log("Previous task still running, skipping this iteration.");
     return;
   }
+  isRunning = true;
+  console.log("Task started at:", new Date().toISOString());
+
   try {
-    await redisClient.set("cron-job-isRunning", "true", { EX: 600 }); // Auto-expire after 10 minutes
-    console.log("Task is running every 10 minutes!");
     const updated_matches = await update_past_or_current_matches();
-    if (updated_matches) {
+    if (updated_matches.length) {
       socket.io.emit("update-matches", updated_matches);
     }
   } catch (error) {
-    console.error("Error in cron job:", error);
+    console.error("Error during task execution:", error);
   } finally {
-    await redisClient.del("cron-job-isRunning");
+    isRunning = false;
+    console.log("Task completed at:", new Date().toISOString());
   }
-});
+};
+
+// Run the task every 10 minutes
+const interval = 10 * 60 * 1000; // 10 minutes in milliseconds
+const job = setInterval(task, interval);
+
+// const job = cron.schedule("*/10 * * * *", async () => {
+//   const isRunning = await redisClient.get("cron-job-isRunning");
+//   if (isRunning) {
+//     console.log("Previous job still running, skipping this iteration.");
+//     return;
+//   }
+//   try {
+//     await redisClient.set("cron-job-isRunning", "true", { EX: 600 }); // Auto-expire after 10 minutes
+//     console.log("Task is running every 10 minutes!");
+//     const updated_matches = await update_past_or_current_matches();
+//     if (updated_matches) {
+//       socket.io.emit("update-matches", updated_matches);
+//     }
+//   } catch (error) {
+//     console.error("Error in cron job:", error);
+//   } finally {
+//     await redisClient.del("cron-job-isRunning");
+//   }
+// });
 
 // Graceful Shutdown
 const cleanup = async () => {
   console.log("Cleaning up resources...");
-  await redisClient.del("cron-job-isRunning");
-  job.stop();
+  // await redisClient.del("cron-job-isRunning");
+  clearInterval(job);
   await sequelize.close();
   socket.io.close();
   process.exit(0);
