@@ -220,7 +220,6 @@ async function get_api_matches_by_id(id) {
 
 exports.update_past_or_current_matches = async () => {
   const transaction = await sequelize.transaction();
-  let signed_db_tx = false;
   try {
     const currentDateUtc = new Date().toISOString();
     const matches = await Match.findAll({
@@ -231,71 +230,75 @@ exports.update_past_or_current_matches = async () => {
         },
       },
     });
-    let ended_matches = [];
-    let updated_matches = [];
 
-    // console.log(matches.map((mp) => mp.dataValues));
+    if (!matches.length) {
+      console.log("No matches to update.");
+      await transaction.rollback();
+      return [];
+    }
 
-    for (let i = 0; i < matches.length; i++) {
-      const match = matches[i];
-      const response = await get_api_matches_by_id(match.id);
-      const { match: match_response, success } = format_match_data(
-        response.data
-      );
-      if (success) {
-        if (match_response.fixture.status.match_status === "ended") {
-          ended_matches.push({
-            inputed: true,
-            match_id: match_response.fixture.id,
-            home: Number(match_response.goals?.home ?? 0),
-            away: Number(match_response.goals?.away ?? 0),
-          });
-        }
-        await match.update(
-          {
-            ...match,
-            details: match_response,
-            scored:
-              match_response.fixture.status.match_status === "ended"
-                ? true
-                : match.scored,
-          },
-          {
-            transaction,
+    const ended_matches = [];
+    const updated_matches = [];
+
+    // Process matches in parallel
+    await Promise.all(
+      matches.map(async (match) => {
+        try {
+          const response = await get_api_matches_by_id(match.id);
+          const { match: match_response, success } = format_match_data(
+            response.data
+          );
+
+          if (success) {
+            if (match_response.fixture.status.match_status === "ended") {
+              ended_matches.push({
+                inputed: true,
+                match_id: match_response.fixture.id,
+                home: Number(match_response.goals?.home ?? 0),
+                away: Number(match_response.goals?.away ?? 0),
+              });
+            }
+
+            await match.update(
+              {
+                details: match_response,
+                scored:
+                  match_response.fixture.status.match_status === "ended"
+                    ? true
+                    : match.scored,
+              },
+              { transaction }
+            );
+
+            updated_matches.push(match);
           }
-        );
-        updated_matches.push(match);
-        if (!signed_db_tx) {
-          signed_db_tx = true;
+        } catch (error) {
+          console.error(`Error updating match ID ${match.id}:`, error);
+          throw error; // Ensure transaction rollback for any error
         }
+      })
+    );
+
+    // Process ended matches
+    if (ended_matches.length) {
+      const registerResult = await new Promise((resolve) =>
+        register_scores(ended_matches, (callback) => resolve(callback))
+      );
+
+      if (!registerResult?.success) {
+        console.error("Failed to register scores, rolling back transaction.");
+        await transaction.rollback();
+        throw new Error("Score registration failed");
       }
     }
 
-    let should_return = true;
-
-    if (ended_matches.length) {
-      await register_scores(ended_matches, async (callback) => {
-        if (callback?.success) {
-          if (signed_db_tx) {
-            await transaction.commit();
-          }
-        } else {
-          if (signed_db_tx) {
-            await transaction.rollback();
-            should_return = false;
-          }
-        }
-      });
-    }
-
-    if (should_return) {
-      return updated_matches;
-    }
+    // Commit transaction
+    await transaction.commit();
+    console.log("Transaction committed successfully.");
+    return updated_matches;
   } catch (error) {
-    console.log(error);
-    if (signed_db_tx) {
-      await transaction.rollback();
-    }
+    console.error("Error in update_past_or_current_matches:", error);
+    await transaction.rollback();
     throw error;
   }
 };
