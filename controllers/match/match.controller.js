@@ -4,6 +4,7 @@ const { cairo } = require("starknet");
 const {
   get_current_round,
   register_scores,
+  get_match_predictions,
 } = require("../contract/contract.controller");
 const { Op } = require("sequelize");
 const dummyMatches = require("./dummy_match.json");
@@ -218,6 +219,54 @@ async function get_api_matches_by_id(id) {
   }
 }
 
+function calculateScore(goals, prediction) {
+  if (!goals.home || !goals.away) return 0;
+  let point = 0;
+  const home = prediction.split(":")[0];
+  const away = prediction.split(":")[1];
+  // Calculate the goal range for the actual result and user prediction
+  const actualGoalRange = getGoalRange([
+    Number(goals.home.toString()),
+    Number(goals.away.toString()),
+  ]);
+  const predictedGoalRange = getGoalRange([
+    Number(home.toString().trim()),
+    Number(away.toString().trim()),
+  ]);
+
+  // Determine if the actual match result is a draw or if one team scored more
+  const actualResult =
+    goals.home === goals.away
+      ? "draw"
+      : goals.home > goals.away
+      ? "home"
+      : "away";
+  const predictedResult =
+    home === away ? "draw" : home > away ? "home" : "away";
+
+  // 5 Points: Exact score match and correct goal range
+  if (
+    goals.home === home &&
+    goals.away === away &&
+    actualGoalRange === predictedGoalRange
+  ) {
+    point = 5; // Exact match
+  }
+  // 3 Point: Correct match result and goal range, but incorrect exact score
+  else if (
+    predictedResult === actualResult &&
+    actualGoalRange === predictedGoalRange
+  ) {
+    point = 3; // Correct result and goal range
+  }
+  // 2 Point: Correct match result only
+  else if (predictedResult === actualResult) {
+    point = 2; // Correct result but incorrect score and goal range
+  }
+
+  return point;
+}
+
 exports.update_past_or_current_matches = async () => {
   const transaction = await sequelize.transaction();
   try {
@@ -281,8 +330,79 @@ exports.update_past_or_current_matches = async () => {
 
     // Process ended matches
     if (ended_matches.length) {
+      let construct = [];
+      let calculated_construct = [];
+      let reward_pool = 0;
+      let total_contribution = 0;
+      let winners_points = [];
+      const percentage_cut = 0.02;
+      let accumulated_precentage = 0;
+
+      for (let i = 0; i < ended_matches.length; i++) {
+        const ended_match = ended_matches[i];
+        const response = await get_match_predictions(ended_match.match_id);
+        construct.push(response);
+      }
+
+      for (let i = 0; i < construct.length; i++) {
+        const element = construct[i];
+        const pool = Number(element.match_pool);
+        if (pool < 1) {
+          continue;
+        }
+        for (let j = 0; j < element.predictions.length; j++) {
+          const element_j = element.predictions[j];
+          const user_address = `0x0${element_j.user.address.toString(16)}`;
+          const prediction = `${Number(element_j.prediction.home)}:${Number(
+            element_j.prediction.away
+          )}`;
+          const stake = Number(element_j.prediction.stake);
+          if (stake < 1) {
+            continue;
+          }
+          const goals = ended_matches[i];
+
+          const user_point = calculateScore(goals, prediction);
+
+          if (user_point === 0) {
+            const perc_cal = stake * percentage_cut;
+            reward_pool += stake - perc_cal;
+            accumulated_precentage += perc_cal;
+          } else {
+            const perc_cal = stake * percentage_cut;
+            accumulated_precentage += perc_cal;
+            const contribution = (stake - perc_cal) * user_point;
+            total_contribution += contribution;
+            winners_points.push({
+              user_address,
+              contribution,
+            });
+          }
+        }
+      }
+      const ACCOUNT_ADDRESS = process.env.ACCOUNT_ADDRESS;
+
+      calculated_construct.push({
+        reward: Math.round(accumulated_precentage),
+        user_address: ACCOUNT_ADDRESS,
+      });
+
+      for (let i = 0; i < winners_points.length; i++) {
+        const winner = winners_points[i];
+        calculated_construct.push({
+          reward: Math.round(
+            (winner.contribution / total_contribution) * reward_pool
+          ),
+          user_address: winner.user_address,
+        });
+      }
+
       const registerResult = await new Promise((resolve) =>
-        register_scores(ended_matches, (callback) => resolve(callback))
+        register_scores(
+          ended_matches,
+          calculated_construct.filter((ft) => Boolean(ft.reward)),
+          (callback) => resolve(callback)
+        )
       );
 
       if (!registerResult?.success) {
