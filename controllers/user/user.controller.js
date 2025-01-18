@@ -61,27 +61,27 @@ exports.get_profile_pic = async (req, res) => {
 
 exports.get_leaderboard_images = async (_, res) => {
   try {
-    let response = [];
+    // let response = [];
 
     const users = await User.findAll({
       order: [["createdAt", "ASC"]],
     });
 
-    for (let i = 0; i < users.length; i++) {
-      const element = users[i];
-      const photoResponse = await process_image(element.id, "arraybuffer");
-      if (photoResponse) {
-        const base64 = Buffer.from(photoResponse.data, "binary").toString(
-          "base64"
-        );
-        response.push({
-          username: element.username,
-          image: base64,
-        });
-      }
-    }
+    // for (let i = 0; i < users.length; i++) {
+    //   const element = users[i];
+    //   const photoResponse = await process_image(element.id, "arraybuffer");
+    //   if (photoResponse) {
+    //     const base64 = Buffer.from(photoResponse.data, "binary").toString(
+    //       "base64"
+    //     );
+    //     response.push({
+    //       username: element.username,
+    //       image: base64,
+    //     });
+    //   }
+    // }
 
-    res.status(200).send({ success: true, message: "Fetched", data: response });
+    res.status(200).send({ success: true, message: "Fetched", data: users });
   } catch (error) {
     console.log(error);
     res.status(500).send({ success: false, message: "server error", data: {} });
@@ -93,10 +93,23 @@ exports.register_user = async (msg) => {
     const user = await User.findByPk(msg.from.id.toString());
 
     if (!user) {
+      let profile_picture = null;
+      const photoResponse = await process_image(
+        msg.from.id.toString(),
+        "arraybuffer"
+      );
+      if (photoResponse) {
+        const base64 = Buffer.from(photoResponse.data, "binary").toString(
+          "base64"
+        );
+        profile_picture = base64;
+      }
+
       await User.create({
         username: msg.from.username,
         id: msg.from.id.toString(),
         chatId: msg.chat.id.toString(),
+        profile_picture,
       });
     }
   } catch (error) {

@@ -60,7 +60,6 @@
     "type": "struct",
     "name": "contract::Reward",
     "members": [
-      { "name": "inputed", "type": "core::bool" },
       {
         "name": "user",
         "type": "core::starknet::contract_address::ContractAddress"
