@@ -329,6 +329,8 @@ exports.update_past_or_current_matches = async () => {
             );
 
             updated_matches.push(match);
+          } else {
+            console.log("no success ===>>>", match.dataValues);
           }
         } catch (error) {
           console.error(`Error updating match ID ${match.id}:`, error);
@@ -393,7 +395,8 @@ exports.update_past_or_current_matches = async () => {
 
       calculated_construct.push({
         reward: Math.round(accumulated_precentage),
-        user_address: ACCOUNT_ADDRESS,
+        user: ACCOUNT_ADDRESS,
+        inputed: true,
       });
 
       for (let i = 0; i < winners_points.length; i++) {
@@ -402,7 +405,8 @@ exports.update_past_or_current_matches = async () => {
           reward: Math.round(
             (winner.contribution / total_contribution) * reward_pool
           ),
-          user_address: winner.user_address,
+          user: winner.user_address,
+          inputed: true,
         });
       }
 
