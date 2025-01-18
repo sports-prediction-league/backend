@@ -87,6 +87,13 @@ const execute_contract_call = async (call) => {
     return { success: true, data: tx, message: "Transaction successful" };
   } catch (error) {
     console.log(error);
+    const match = log.match(/'([^']+)'/);
+
+    // If a match is found, get the error message
+    if (match) {
+      const errorMessage = match[1];
+      return { success: false, data: {}, message: errorMessage };
+    }
     return { success: false, data: {}, message: error.message };
   }
 };

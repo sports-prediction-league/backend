@@ -401,13 +401,15 @@ exports.update_past_or_current_matches = async () => {
 
       for (let i = 0; i < winners_points.length; i++) {
         const winner = winners_points[i];
-        calculated_construct.push({
-          reward: Math.round(
-            (winner.contribution / total_contribution) * reward_pool
-          ),
-          user: winner.user_address,
-          inputed: true,
-        });
+        if (reward_pool > 0) {
+          calculated_construct.push({
+            reward: Math.round(
+              (winner.contribution / total_contribution) * reward_pool
+            ),
+            user: winner.user_address,
+            inputed: true,
+          });
+        }
       }
 
       const registerResult = await new Promise((resolve) =>
