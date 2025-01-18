@@ -223,6 +223,11 @@ async function get_api_matches_by_id(id) {
   }
 }
 
+function getGoalRange(score) {
+  const totalGoals = score[0] + score[1];
+  return totalGoals <= 2 ? "0-2" : "3+";
+}
+
 function calculateScore(goals, prediction) {
   if (!goals.home || !goals.away) return 0;
   let point = 0;
