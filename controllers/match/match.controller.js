@@ -64,6 +64,14 @@ const format_match_data = (match) => {
   return { success: false, match: null };
 };
 
+const normalizeName = (name) => {
+  // Convert to lowercase, and remove common suffixes like "FC", "SC", etc.
+  return name
+    .toLowerCase()
+    .replace(/\s?(fc|sc|club|united|city)$/i, "")
+    .trim();
+};
+
 const groupByUTCHours = (
   arr,
   startHourUTC = 10,
@@ -126,16 +134,10 @@ const groupByUTCHours = (
 
     // Prioritize items where the team names match any in the prioritizedTeamNames array
 
-    // for (let i = 0; i < item.sport_event.conpetitors.length; i++) {
-    //   const competitor = item.sport_event.conpetitors[i];
-    //   if(prio)
-
-    // }
-
-    // dummyMatches.schedules[0].sport_event_status.
-
     const exists = item.sport_event.competitors.some((competitor) =>
-      prioritizedTeamNames.includes(competitor.name.toLowerCase())
+      prioritizedTeamNames.some(
+        (team) => normalizeName(competitor.name) === normalizeName(team)
+      )
     );
 
     if (
