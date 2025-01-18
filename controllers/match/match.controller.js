@@ -135,7 +135,7 @@ const groupByUTCHours = (
     // dummyMatches.schedules[0].sport_event_status.
 
     const exists = item.sport_event.competitors.some((competitor) =>
-      prioritizedTeamNames.includes(competitor)
+      prioritizedTeamNames.includes(competitor.name.toLowerCase())
     );
 
     if (
@@ -147,7 +147,8 @@ const groupByUTCHours = (
     } else if (
       utcHours >= startHourUTC &&
       utcHours < endHourUTC &&
-      item.sport_event_status.match_status === "not_started"
+      item.sport_event_status.match_status === "not_started" &&
+      item.sport_event.start_time_confirmed
     ) {
       // If this hour doesn't have a group yet, initialize it
       if (!groupedByHour[utcHours]) {
