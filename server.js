@@ -370,7 +370,7 @@ const task = async () => {
 };
 
 // Run the task every 10 minutes
-const interval = 10 * 60 * 1000; // 10 minutes in milliseconds
+const interval = 20 * 60 * 1000; // 10 minutes in milliseconds
 const job = setInterval(task, interval);
 
 // const job = cron.schedule("*/10 * * * *", async () => {
