@@ -788,7 +788,7 @@ exports.get_matches = async (req, res) => {
       data: {
         matches,
         total_rounds: converted_round,
-        current_round: match?.round ?? 0,
+        current_round: match?.round ?? converted_round,
       },
     });
   } catch (error) {
