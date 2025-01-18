@@ -27,6 +27,11 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: false,
       },
+      profile_picture: {
+        type: DataTypes.TEXT, // Change to the desired type
+        allowNull: true, // Adjust according to your needs
+        defaultValue: null, // Optional: set a default value
+      },
     },
     {
       sequelize,
