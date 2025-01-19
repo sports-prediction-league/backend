@@ -64,6 +64,14 @@ const format_match_data = (match) => {
   return { success: false, match: null };
 };
 
+const normalizeName = (name) => {
+  // Convert to lowercase, and remove common suffixes like "FC", "SC", etc.
+  return name
+    .toLowerCase()
+    .replace(/\s?(fc|sc|club|united|city)$/i, "")
+    .trim();
+};
+
 const groupByUTCHours = (
   arr,
   startHourUTC = 10,
@@ -126,16 +134,10 @@ const groupByUTCHours = (
 
     // Prioritize items where the team names match any in the prioritizedTeamNames array
 
-    // for (let i = 0; i < item.sport_event.conpetitors.length; i++) {
-    //   const competitor = item.sport_event.conpetitors[i];
-    //   if(prio)
-
-    // }
-
-    // dummyMatches.schedules[0].sport_event_status.
-
     const exists = item.sport_event.competitors.some((competitor) =>
-      prioritizedTeamNames.includes(competitor)
+      prioritizedTeamNames.some(
+        (team) => normalizeName(competitor.name) === normalizeName(team)
+      )
     );
 
     if (
@@ -147,7 +149,8 @@ const groupByUTCHours = (
     } else if (
       utcHours >= startHourUTC &&
       utcHours < endHourUTC &&
-      item.sport_event_status.match_status === "not_started"
+      item.sport_event_status.match_status === "not_started" &&
+      item.sport_event.start_time_confirmed
     ) {
       // If this hour doesn't have a group yet, initialize it
       if (!groupedByHour[utcHours]) {
@@ -223,6 +226,11 @@ async function get_api_matches_by_id(id) {
   }
 }
 
+function getGoalRange(score) {
+  const totalGoals = score[0] + score[1];
+  return totalGoals <= 2 ? "0-2" : "3+";
+}
+
 function calculateScore(goals, prediction) {
   if (!goals.home || !goals.away) return 0;
   let point = 0;
@@ -250,8 +258,8 @@ function calculateScore(goals, prediction) {
 
   // 5 Points: Exact score match and correct goal range
   if (
-    goals.home === home &&
-    goals.away === away &&
+    goals?.home?.toString()?.trim() === home?.toString()?.trim() &&
+    goals?.away?.toString()?.trim() === away?.toString()?.trim() &&
     actualGoalRange === predictedGoalRange
   ) {
     point = 5; // Exact match
@@ -324,6 +332,8 @@ exports.update_past_or_current_matches = async () => {
             );
 
             updated_matches.push(match);
+          } else {
+            console.log("no success ===>>>", match.dataValues);
           }
         } catch (error) {
           console.error(`Error updating match ID ${match.id}:`, error);
@@ -388,17 +398,19 @@ exports.update_past_or_current_matches = async () => {
 
       calculated_construct.push({
         reward: Math.round(accumulated_precentage),
-        user_address: ACCOUNT_ADDRESS,
+        user: ACCOUNT_ADDRESS,
       });
 
       for (let i = 0; i < winners_points.length; i++) {
         const winner = winners_points[i];
-        calculated_construct.push({
-          reward: Math.round(
-            (winner.contribution / total_contribution) * reward_pool
-          ),
-          user_address: winner.user_address,
-        });
+        if (reward_pool > 0) {
+          calculated_construct.push({
+            reward: Math.round(
+              (winner.contribution / total_contribution) * reward_pool
+            ),
+            user: winner.user_address,
+          });
+        }
       }
 
       const registerResult = await new Promise((resolve) =>
@@ -779,7 +791,7 @@ exports.get_matches = async (req, res) => {
       data: {
         matches,
         total_rounds: converted_round,
-        current_round: match?.round ?? 0,
+        current_round: match?.round ?? converted_round,
       },
     });
   } catch (error) {

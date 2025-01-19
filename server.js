@@ -12,6 +12,7 @@ const {
   register_user,
   get_leaderboard_images,
   get_user_by_id,
+  update_profile_picture,
 } = require("./controllers/user/user.controller");
 const {
   set_next_matches,
@@ -123,6 +124,18 @@ bot.on("message", async (msg) => {
 });
 
 bot.onText(/\/start/, register_user);
+bot.onText(/\/update_profile_pic/, async (msg) => {
+  try {
+    const updated = await update_profile_picture(msg);
+    if (updated) {
+      bot.sendMessage(msg.chat.id, "Profile picture Updated!");
+    } else {
+      bot.sendMessage(msg.chat.id, "OOOPPPSSS!!! Something went wrong");
+    }
+  } catch (error) {
+    bot.sendMessage(msg.chat.id, "OOOPPPSSS!!! Something went wrong");
+  }
+});
 bot.onText(/\/status (.+)/, async (msg, match) => {
   try {
     if (msg.chat?.id.toString() !== ADMIN_CHAT_ID.toString()) {
@@ -370,7 +383,7 @@ const task = async () => {
 };
 
 // Run the task every 10 minutes
-const interval = 10 * 60 * 1000; // 10 minutes in milliseconds
+const interval = 20 * 60 * 1000; // 10 minutes in milliseconds
 const job = setInterval(task, interval);
 
 // const job = cron.schedule("*/10 * * * *", async () => {

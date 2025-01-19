@@ -10,6 +10,14 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
       // define association here
     }
+
+    toJSON() {
+      return {
+        ...this.get(),
+        createdAt: undefined,
+        updatedAt: undefined,
+      };
+    }
   }
   User.init(
     {
@@ -26,6 +34,11 @@ module.exports = (sequelize, DataTypes) => {
       chatId: {
         type: DataTypes.STRING,
         allowNull: false,
+      },
+      profile_picture: {
+        type: DataTypes.TEXT, // Change to the desired type
+        allowNull: true, // Adjust according to your needs
+        defaultValue: null, // Optional: set a default value
       },
     },
     {
