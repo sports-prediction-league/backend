@@ -43,19 +43,66 @@ const process_image = async (userId, type) => {
 exports.get_profile_pic = async (req, res) => {
   try {
     const userId = req.query.userId;
-    const photoResponse = await process_image(userId, "stream");
-    if (!photoResponse) {
-      res.status(500).send({
-        success: false,
-        message: "Invalid response data: Unable to pipe to response.",
-        data: {},
-      });
-      return;
+    const user = await User.findOne({
+      where: {
+        id: userId,
+      },
+    });
+
+    if (!user) {
+      return res
+        .status(400)
+        .send({ success: false, message: "User not found" });
     }
-    photoResponse?.data.pipe(res);
+
+    res.status(200).send({ success: true, data: user });
+    // const photoResponse = await process_image(userId, "stream");
+    // if (!photoResponse) {
+    //   res.status(500).send({
+    //     success: false,
+    //     message: "Invalid response data: Unable to pipe to response.",
+    //     data: {},
+    //   });
+    //   return;
+    // }
+    // photoResponse?.data.pipe(res);
   } catch (error) {
     console.log(error);
     res.status(500).send({ success: false, message: "server error", data: {} });
+  }
+};
+
+exports.update_profile_picture = async (msg) => {
+  try {
+    const user = await User.findByPk(msg.from.id.toString());
+
+    let profile_picture = null;
+    const photoResponse = await process_image(
+      msg.from.id.toString(),
+      "arraybuffer"
+    );
+    if (photoResponse) {
+      const base64 = Buffer.from(photoResponse.data, "binary").toString(
+        "base64"
+      );
+      profile_picture = base64;
+    }
+    if (!user) {
+      await User.create({
+        username: msg.from.username,
+        id: msg.from.id.toString(),
+        chatId: msg.chat.id.toString(),
+        profile_picture,
+      });
+      return true;
+    }
+    await user.update({
+      profile_picture,
+    });
+
+    return true;
+  } catch (error) {
+    throw error;
   }
 };
 
