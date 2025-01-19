@@ -72,6 +72,40 @@ exports.get_profile_pic = async (req, res) => {
   }
 };
 
+exports.update_profile_picture = async (msg) => {
+  try {
+    const user = await User.findByPk(msg.from.id.toString());
+
+    let profile_picture = null;
+    const photoResponse = await process_image(
+      msg.from.id.toString(),
+      "arraybuffer"
+    );
+    if (photoResponse) {
+      const base64 = Buffer.from(photoResponse.data, "binary").toString(
+        "base64"
+      );
+      profile_picture = base64;
+    }
+    if (!user) {
+      await User.create({
+        username: msg.from.username,
+        id: msg.from.id.toString(),
+        chatId: msg.chat.id.toString(),
+        profile_picture,
+      });
+      return true;
+    }
+    await user.update({
+      profile_picture,
+    });
+
+    return true;
+  } catch (error) {
+    throw error;
+  }
+};
+
 exports.get_leaderboard_images = async (_, res) => {
   try {
     // let response = [];
