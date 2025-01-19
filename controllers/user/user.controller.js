@@ -43,16 +43,29 @@ const process_image = async (userId, type) => {
 exports.get_profile_pic = async (req, res) => {
   try {
     const userId = req.query.userId;
-    const photoResponse = await process_image(userId, "stream");
-    if (!photoResponse) {
-      res.status(500).send({
-        success: false,
-        message: "Invalid response data: Unable to pipe to response.",
-        data: {},
-      });
-      return;
+    const user = await User.findOne({
+      where: {
+        id: userId,
+      },
+    });
+
+    if (!user) {
+      return res
+        .status(400)
+        .send({ success: false, message: "User not found" });
     }
-    photoResponse?.data.pipe(res);
+
+    res.status(200).send({ success: true, data: user });
+    // const photoResponse = await process_image(userId, "stream");
+    // if (!photoResponse) {
+    //   res.status(500).send({
+    //     success: false,
+    //     message: "Invalid response data: Unable to pipe to response.",
+    //     data: {},
+    //   });
+    //   return;
+    // }
+    // photoResponse?.data.pipe(res);
   } catch (error) {
     console.log(error);
     res.status(500).send({ success: false, message: "server error", data: {} });
