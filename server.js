@@ -96,7 +96,7 @@ app.post("/execute", async (req, res) => {
 
 app.post("/deploy-account", async (req, res) => {
   try {
-    const { account_payload, user_id } = req.body;
+    const { account_payload, user_id,address } = req.body;
     if (!account_payload || !user_id) {
       res
         .status(400)
@@ -110,7 +110,7 @@ app.post("/deploy-account", async (req, res) => {
         .send({ success: false, message: "Invalid user", data: {} });
       return;
     }
-    const tx = await deploy_account(req.body.account_payload);
+    const tx = await deploy_account(req.body.account_payload,address);
     res.status(200).send(tx);
   } catch (error) {
     res
