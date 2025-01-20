@@ -98,15 +98,14 @@ const execute_contract_call = async (call) => {
   }
 };
 
-const deploy_account = async (account_payload,address) => {
+const deploy_account = async (account_payload) => {
   try {
     if (!account_payload) {
       return { success: false, data: {}, message: "Invalid call" };
     }
-    console.log(account_payload)
 
     const { account } = get_provider_and_account();
-    const tx = await account.deployAccount(account_payload,{nonce:await account.getNonceForAddress(address)});
+    const tx = await account.deployAccount(account_payload);
     return { success: true, data: tx, message: "Deployment successful" };
   } catch (error) {
     console.log(error);
