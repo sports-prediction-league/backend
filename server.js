@@ -421,7 +421,7 @@ process.on("SIGINT", cleanup);
 process.on("SIGTERM", cleanup);
 
 // const server = app;
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8000;
 server.listen(PORT, async () => {
   await sequelize.authenticate();
   console.log("Connected to database");
