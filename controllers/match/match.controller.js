@@ -443,7 +443,7 @@ const getFutureDays = (numOfDays, start_date) => {
   const daysArray = [];
   const today = start_date ? new Date(start_date) : new Date();
 
-  for (let i = 1; i <= numOfDays; i++) {
+  for (let i = 0; i <= numOfDays; i++) {
     const futureDate = new Date(today);
     futureDate.setDate(today.getDate() + i); // Add i days to today's date
     daysArray.push(futureDate.toDateString()); // You can format this as you like
