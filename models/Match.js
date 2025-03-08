@@ -41,7 +41,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       date: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
       scored: {

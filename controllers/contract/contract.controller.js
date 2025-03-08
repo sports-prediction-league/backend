@@ -31,8 +31,8 @@ const register_matches = async (matches) => {
 
     const tx = await contract.register_matches(matches);
 
-    await provider.waitForTransaction(tx.transaction_hash);
-
+    const receipt = await provider.waitForTransaction(tx.transaction_hash);
+    console.log(receipt);
     return tx.transaction_hash;
   } catch (error) {
     throw error;
@@ -47,8 +47,8 @@ const register_scores = async (scores, rewards) => {
     }
     const tx = await contract.set_scores(scores, rewards);
 
-    await provider.waitForTransaction(tx.transaction_hash);
-
+    const receipt = await provider.waitForTransaction(tx.transaction_hash);
+    console.log(receipt);
     return tx.transaction_hash;
   } catch (error) {
     throw error;
