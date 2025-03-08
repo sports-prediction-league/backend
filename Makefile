@@ -9,3 +9,6 @@ mgtest:
 
 mgdev:
 	npx sequelize-cli db:migrate
+
+dev:
+	make mgdev && npm run dev

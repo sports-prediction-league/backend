@@ -1,5 +1,8 @@
 node_modules/
-.env
+prod.env
+test.env
+dev.env
 dev.sqlite
 package-lock.json
 test.js
+

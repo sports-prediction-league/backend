@@ -1,0 +1,58 @@
+[
+  {
+    "id": 1,
+    "league": "Premier League",
+    "country": "England",
+    "flag": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    "teams": [
+      { "id": 101, "name": "Arsenal" },
+      { "id": 102, "name": "Aston Villa" },
+      { "id": 103, "name": "Bournemouth" },
+      { "id": 104, "name": "Brentford" },
+      { "id": 105, "name": "Brighton & Hove Albion" },
+      { "id": 106, "name": "Chelsea" },
+      { "id": 107, "name": "Crystal Palace" },
+      { "id": 108, "name": "Everton" },
+      { "id": 109, "name": "Fulham" },
+      { "id": 110, "name": "Leeds United" },
+      { "id": 111, "name": "Leicester City" },
+      { "id": 112, "name": "Liverpool" },
+      { "id": 113, "name": "Manchester City" },
+      { "id": 114, "name": "Manchester United" },
+      { "id": 115, "name": "Newcastle United" },
+      { "id": 116, "name": "Nottingham Forest" },
+      { "id": 117, "name": "Southampton" },
+      { "id": 118, "name": "Tottenham Hotspur" },
+      { "id": 119, "name": "West Ham United" },
+      { "id": 120, "name": "Wolverhampton Wanderers" }
+    ]
+  },
+  {
+    "id": 2,
+    "league": "La Liga",
+    "country": "Spain",
+    "flag": "🇪🇸",
+    "teams": [
+      { "id": 121, "name": "Almería" },
+      { "id": 122, "name": "Athletic Bilbao" },
+      { "id": 123, "name": "Atlético Madrid" },
+      { "id": 124, "name": "Barcelona" },
+      { "id": 125, "name": "Cádiz" },
+      { "id": 126, "name": "Celta Vigo" },
+      { "id": 127, "name": "Elche" },
+      { "id": 128, "name": "Espanyol" },
+      { "id": 129, "name": "Getafe" },
+      { "id": 130, "name": "Granada" },
+      { "id": 131, "name": "Mallorca" },
+      { "id": 132, "name": "Osasuna" },
+      { "id": 133, "name": "Real Betis" },
+      { "id": 134, "name": "Real Madrid" },
+      { "id": 135, "name": "Real Sociedad" },
+      { "id": 136, "name": "Rayo Vallecano" },
+      { "id": 137, "name": "Sevilla" },
+      { "id": 138, "name": "Valencia" },
+      { "id": 139, "name": "Villarreal" },
+      { "id": 140, "name": "Levante" }
+    ]
+  }
+]
