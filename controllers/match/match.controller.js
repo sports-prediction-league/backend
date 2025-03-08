@@ -1,13 +1,23 @@
 const axios = require("axios");
 const { Match, sequelize } = require("../../models");
-const { cairo } = require("starknet");
 const {
-  get_current_round,
+  cairo,
+  CairoOption,
+  CairoOptionVariant,
+  CairoCustomEnum,
+} = require("starknet");
+const {
   register_scores,
-  get_match_predictions,
+  get_matches_predictions,
+  register_matches,
 } = require("../contract/contract.controller");
 const { Op } = require("sequelize");
-const dummyMatches = require("./dummy_match.json");
+const VIRTUAL_LEAGUES = require("../../config/virtual.json");
+const {
+  feltToString,
+  formatUnits,
+  parseUnits,
+} = require("../../helpers/helpers");
 
 const format_match_data = (match) => {
   const home_team = match.sport_event.competitors.find(
@@ -747,41 +757,102 @@ exports.set_scores = async (transaction, callback) => {
   }
 };
 
-exports.get_matches = async (req, res) => {
+exports.get_matches_events = async (ids) => {
   try {
-    const current_round = await get_current_round();
-    const match = await Match.findOne({
+    const matches = await Match.findAll({
       order: [["date", "ASC"]],
 
       where: {
-        scored: false,
+        id: {
+          [Op.in]: ids,
+        },
+        date: {
+          [Op.lte]: Date.now(),
+        },
+        type: "VIRTUAL",
       },
     });
-    const converted_round = Number(current_round);
-    const { round } = req.query;
-    if (round) {
-      const matches = await Match.findAndCountAll({
-        order: [["date", "ASC"]],
+    return matches.map((match) => {
+      return {
+        ...match.toJSON(),
+        details: match.getDetails(match.date > Date.now()),
+      };
+    });
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+};
 
+exports.get_matches = async (req, res) => {
+  try {
+    const [current_match, last_match] = await Promise.all([
+      Match.findOne({
         where: {
-          round: round,
+          scored: false,
+          date: {
+            [Op.or]: [
+              {
+                [Op.lte]: Date.now(),
+              },
+              {
+                [Op.gte]: Date.now() + 2 * 60 * 1000,
+              },
+            ],
+          },
         },
-      });
+        order: [["round", "ASC"]],
+      }),
+      Match.findOne({
+        order: [["round", "DESC"]],
+      }),
+    ]);
 
+    // const converted_round = Number(current_round);
+    // const { round } = req.query;
+    // if (round) {
+    //   const matches = await Match.findAndCountAll({
+    //     order: [["date", "ASC"]],
+
+    //     where: {
+    //       round: round,
+    //     },
+    //   });
+
+    //   res.status(200).send({
+    //     success: true,
+    //     message: "Matches Fetched",
+    //     data: { matches, current_round: round, total_rounds: last_match.round },
+    //   });
+
+    //   return;
+    // }
+
+    if (!current_match) {
       res.status(200).send({
         success: true,
-        message: "Matches Fetched",
-        data: { matches, current_round: round, total_rounds: converted_round },
+        message: "Matches fetched",
+        data: {
+          matches: {
+            virtual: [],
+            live: [],
+          },
+          total_rounds: last_match?.round ?? 0,
+          current_round: last_match?.round ?? 0,
+        },
       });
 
       return;
     }
-
-    const matches = await Match.findAndCountAll({
+    const matches = await Match.findAll({
       order: [["date", "ASC"]],
 
       where: {
-        round: match?.round ?? converted_round,
+        round: {
+          [Op.gte]: current_match.round,
+          [Op.lt]: current_match.round + 3,
+        },
+        type: "VIRTUAL",
       },
     });
 
@@ -789,9 +860,19 @@ exports.get_matches = async (req, res) => {
       success: true,
       message: "Matches Fetched",
       data: {
-        matches,
-        total_rounds: converted_round,
-        current_round: match?.round ?? converted_round,
+        matches: {
+          virtual: matches.map((match) => {
+            const now = Date.now();
+            return {
+              ...match.toJSON(),
+              details: match.getDetails(match.date > now),
+            };
+          }),
+          live: [],
+        },
+
+        total_rounds: last_match.round,
+        current_round: current_match.round,
       },
     });
   } catch (error) {
@@ -801,3 +882,517 @@ exports.get_matches = async (req, res) => {
     console.log(error);
   }
 };
+
+function calculatePredictionOdds() {
+  // Generate random odds within a realistic range
+  const getRandomOdd = (min = 1.1, max = 6.0) => {
+    return parseFloat((min + Math.random() * (max - min)).toFixed(1));
+  };
+
+  // Basic match result odds
+  const odds = {
+    home: getRandomOdd(),
+    away: getRandomOdd(),
+    draw: getRandomOdd(),
+    // totalGoals: {
+    //   under: getRandomOdd(),
+    //   over: getRandomOdd(),
+    // },
+    // bothTeamsToScore: {
+    //   yes: getRandomOdd(1.5, 2.5), // Odds for both teams scoring
+    //   no: getRandomOdd(1.5, 2.5), // Odds for a clean sheet
+    // },
+    // firstTeamToScore: {
+    //   home: getRandomOdd(1.5, 2.5),
+    //   away: getRandomOdd(1.5, 2.5),
+    //   noGoal: getRandomOdd(3.0, 5.0), // If no team scores
+    // },
+    // halftimeFulltime: {
+    //   homeHome: getRandomOdd(2.0, 4.5), // Home leads at HT and wins FT
+    //   homeDraw: getRandomOdd(4.0, 6.5), // Home leads HT but Draw FT
+    //   homeAway: getRandomOdd(7.0, 12.0), // Home leads HT, Away wins FT
+    //   drawHome: getRandomOdd(3.5, 5.5), // Draw HT, Home wins FT
+    //   drawDraw: getRandomOdd(3.0, 4.5), // Draw HT, Draw FT
+    //   drawAway: getRandomOdd(3.5, 5.5), // Draw HT, Away wins FT
+    //   awayHome: getRandomOdd(7.0, 12.0), // Away leads HT, Home wins FT
+    //   awayDraw: getRandomOdd(4.0, 6.5), // Away leads HT, Draw FT
+    //   awayAway: getRandomOdd(2.0, 4.5), // Away leads HT and wins FT
+    // },
+    // handicap: {
+    //   homeMinus1: getRandomOdd(2.0, 3.5), // Home wins by 2+ goals
+    //   awayPlus1: getRandomOdd(1.8, 3.2), // Away loses by max 1 goal
+    //   homeMinus2: getRandomOdd(3.5, 5.5), // Home wins by 3+ goals
+    //   awayPlus2: getRandomOdd(2.5, 4.5), // Away loses by max 2 goals
+    // },
+  };
+
+  return odds;
+}
+
+function generateGameScript(duration = 120, scores) {
+  const script = generateBaseGameScript(duration, scores);
+  const odds = calculatePredictionOdds();
+
+  return {
+    events: script,
+    odds,
+  };
+}
+
+// Game script generator function remains the same...
+function generateBaseGameScript(duration = 120, scores) {
+  const script = [];
+  const totalGoals = scores.home + scores.away;
+  const halfTime = duration / 2;
+
+  // Add second half event
+  script.push({
+    time: halfTime,
+    type: "second-half",
+    position: {
+      x: 50,
+      y: 50,
+    },
+  });
+
+  function createSequence(
+    startTime,
+    isHome,
+    shouldScore,
+    maxDuration,
+    isLastScoring
+  ) {
+    const events = [];
+    let currentTime = startTime;
+
+    const startX = 30 + Math.random() * 40;
+    const startY = 20 + Math.random() * 60;
+    const remainingTime = maxDuration - currentTime;
+
+    const minMovements = shouldScore ? 2 : 3;
+    const maxMovements = shouldScore
+      ? Math.min(5, Math.floor(remainingTime / 2))
+      : Math.min(8, Math.floor(remainingTime / 3));
+
+    const movementCount = Math.max(
+      minMovements,
+      Math.min(3 + Math.floor(Math.random() * 3), maxMovements)
+    );
+
+    let timePerMove;
+    if (shouldScore) {
+      const requiredTime = isLastScoring
+        ? remainingTime
+        : Math.min(remainingTime, 15);
+      timePerMove = Math.max(1, requiredTime / (movementCount + 2));
+    } else {
+      timePerMove = Math.max(1, remainingTime / (movementCount + 1));
+    }
+
+    events.push({
+      time: currentTime,
+      type: "move",
+      position: { x: startX, y: startY },
+    });
+
+    for (let i = 1; i < movementCount; i++) {
+      currentTime += timePerMove;
+      if (currentTime >= maxDuration) break;
+
+      let targetX, targetY;
+
+      if (shouldScore) {
+        const progressRatio = i / movementCount;
+        targetX = isHome
+          ? startX + (95 - startX) * progressRatio
+          : startX - (startX - 5) * progressRatio;
+        targetY = 40 + Math.random() * 20;
+      } else {
+        const previousX = events[events.length - 1].position.x;
+        const previousY = events[events.length - 1].position.y;
+
+        const moveType = Math.random();
+        if (moveType < 0.4) {
+          targetX = Math.max(
+            5,
+            Math.min(95, previousX + (Math.random() - 0.5) * 30)
+          );
+          targetY = previousY + (Math.random() - 0.5) * 10;
+        } else {
+          targetX = Math.max(5, Math.min(95, 20 + Math.random() * 60));
+          targetY = Math.max(5, Math.min(95, 20 + Math.random() * 60));
+        }
+      }
+
+      events.push({
+        time: currentTime,
+        type: "move",
+        position: { x: targetX, y: targetY },
+      });
+    }
+
+    if (shouldScore && currentTime + timePerMove <= maxDuration) {
+      currentTime += timePerMove;
+      events.push({
+        time: currentTime,
+        type: "goal",
+        position: { x: isHome ? 95 : 5, y: 50 },
+        team: isHome ? "home" : "away",
+      });
+
+      if (currentTime + timePerMove <= maxDuration) {
+        currentTime += timePerMove;
+        events.push({
+          time: currentTime,
+          type: "move",
+          position: { x: 50, y: 50 },
+        });
+      }
+    }
+
+    return { events, endTime: currentTime };
+  }
+
+  let currentTime = 0;
+  let homeGoalsLeft = scores.home;
+  let awayGoalsLeft = scores.away;
+
+  if (totalGoals > 0) {
+    const approxTimePerGoal = duration / (totalGoals + 1);
+
+    while (homeGoalsLeft > 0 || awayGoalsLeft > 0) {
+      const homeTeamAttacks =
+        Math.random() < homeGoalsLeft / (homeGoalsLeft + awayGoalsLeft);
+      const isLastScore = homeGoalsLeft + awayGoalsLeft === 1;
+
+      // If we're approaching half time, delay the sequence to after half time
+      if (currentTime < halfTime && currentTime + 15 > halfTime) {
+        currentTime = halfTime + 5;
+      }
+
+      const sequence = createSequence(
+        currentTime,
+        homeTeamAttacks,
+        true,
+        duration,
+        isLastScore
+      );
+
+      script.push(...sequence.events);
+
+      if (homeTeamAttacks) homeGoalsLeft--;
+      else awayGoalsLeft--;
+
+      currentTime = sequence.endTime + Math.min(5, approxTimePerGoal * 0.2);
+    }
+  }
+
+  while (currentTime < duration) {
+    const isHome = Math.random() < 0.5;
+    const remainingTime = duration - currentTime;
+
+    // If we're approaching half time, delay the sequence to after half time
+    if (currentTime < halfTime && currentTime + 10 > halfTime) {
+      currentTime = halfTime + 5;
+      continue;
+    }
+
+    if (remainingTime < 3) {
+      script.push({
+        time: currentTime,
+        type: "move",
+        position: { x: 45 + Math.random() * 10, y: 45 + Math.random() * 10 },
+      });
+      break;
+    }
+
+    const sequence = createSequence(
+      currentTime,
+      isHome,
+      false,
+      duration,
+      false
+    );
+    script.push(...sequence.events);
+    currentTime = sequence.endTime + Math.min(2, remainingTime * 0.1);
+  }
+
+  return script
+    .filter((event) => event.time <= duration)
+    .sort((a, b) => a.time - b.time);
+}
+
+const shuffleTeams = (teams) => {
+  const shuffledTeams = [...teams];
+  for (let i = shuffledTeams.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffledTeams[i], shuffledTeams[j]] = [shuffledTeams[j], shuffledTeams[i]];
+  }
+  return shuffledTeams;
+};
+
+// Generate matches
+const generateLeagueMatches = (league, round, startTime) => {
+  const shuffledTeams = shuffleTeams(league.teams);
+  const matches = [];
+
+  // const matchId = Math.floor(10000000 + Math.random() * 90000000);
+  // Ensure an even number of teams
+  const teamsToPair =
+    shuffledTeams.length % 2 === 0 ? shuffledTeams : shuffledTeams.slice(0, -1);
+
+  for (let i = 0; i < teamsToPair.length; i += 2) {
+    const fixtureDate = new Date(startTime); // Spread matches 10 mins apart
+    const matchId = Math.random().toString(36).substring(2, 12);
+    const targetScore = {
+      home: Math.floor(Math.random() * 7),
+      away: Math.floor(Math.random() * 7),
+    };
+    const script = generateGameScript(120, targetScore);
+
+    matches.push({
+      details: {
+        fixture: {
+          id: matchId,
+          date: fixtureDate.getTime(),
+          timestamp: fixtureDate.getTime(),
+        },
+        ...script,
+        league: { ...league, teams: undefined },
+        teams: {
+          home: teamsToPair[i],
+          away: teamsToPair[i + 1],
+        },
+        goals: targetScore,
+      },
+      type: "VIRTUAL",
+      date: fixtureDate.getTime(),
+      round,
+      id: matchId,
+    });
+  }
+  return matches;
+};
+
+// Schedule all leagues with a 2-minute gap
+const scheduleAllLeagues = (leagues, now = Date.now(), round) => {
+  const allMatches = [];
+  leagues.forEach((league, index) => {
+    const leagueStartTime = now + index * 2 * 60 * 1000; // 2 min after each other
+    const leagueMatches = generateLeagueMatches(league, round, leagueStartTime);
+    allMatches.push(...leagueMatches);
+  });
+
+  return allMatches;
+};
+
+// const getByJsonPointer = (obj, pointer) => {
+//   return pointer.split("/").reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
+// };
+
+const checkWin = (userPrediction, matchScore, odds, stake) => {
+  // Convert "totalGoals/over" → ["totalGoals", "over"]
+  const predictionKeys = userPrediction.split("/");
+
+  let currentOdds = odds;
+
+  // Traverse nested keys to find the correct odds value
+  for (let key of predictionKeys) {
+    if (currentOdds[key] === undefined) return { won: false, payout: 0 };
+    currentOdds = currentOdds[key];
+  }
+
+  // Validate the prediction
+  const isWinningBet = validatePrediction(userPrediction, matchScore);
+
+  // Calculate payout
+  return isWinningBet
+    ? { won: true, payout: stake * currentOdds, odd: currentOdds }
+    : { won: false, payout: 0 };
+};
+
+// ✅ Updated function to validate different bet types
+const validatePrediction = (userPrediction, matchScore) => {
+  switch (userPrediction) {
+    case "home":
+      return matchScore.home > matchScore.away;
+    case "away":
+      return matchScore.away > matchScore.home;
+    case "draw":
+      return matchScore.home === matchScore.away;
+    default:
+      return false;
+  }
+};
+
+exports.checkAndScore = async () => {
+  try {
+    const pastTime = Date.now() - 2 * 60 * 1000;
+
+    const finished_matches = await Match.findAll({
+      where: {
+        scored: false,
+        date: {
+          [Op.lte]: pastTime,
+        },
+      },
+    });
+
+    let new_matches = [];
+
+    if (finished_matches.length) {
+      const [current_match, last_match] = await Promise.all([
+        Match.findOne({
+          where: {
+            scored: false,
+          },
+          order: [["round", "ASC"]],
+        }),
+        Match.findOne({
+          order: [["round", "DESC"]],
+        }),
+      ]);
+
+      let diff = Number(last_match.round) - Number(current_match.round);
+
+      console.log("diff==========>>>", diff);
+
+      if (diff < 3) {
+        console.log(
+          "refill ==========================================================>>>>>>>>>",
+          3 - diff
+        );
+        let prepared = [];
+        for (let i = 0; i < 3 - diff; i++) {
+          const new_schedule = scheduleAllLeagues(
+            VIRTUAL_LEAGUES,
+            prepared.length
+              ? prepared[prepared.length - 1].date + 2 * 60 * 1000
+              : last_match?.date + 4 * 60 * 1000,
+            prepared.length
+              ? prepared[prepared.length - 1].round + 1
+              : Number(last_match?.round) + 1
+          );
+
+          console.log(new_schedule.length);
+          console.log(new_schedule.map((mp) => mp.date));
+          prepared.push(...new_schedule);
+        }
+        await Match.bulkCreate(prepared);
+        new_matches = prepared;
+      }
+
+      let rewards = [];
+
+      let scores = finished_matches.map((mp) => {
+        return {
+          match_id: cairo.felt(mp.id),
+          inputed: true,
+          home: cairo.uint256(mp.getDetails(false).goals.home),
+          away: cairo.uint256(mp.getDetails(false).goals.away),
+        };
+      });
+
+      console.log(scores);
+
+      const match_predictions = await get_matches_predictions(
+        finished_matches.map((mp) => cairo.felt(mp.id))
+      );
+      for (let i = 0; i < match_predictions.length; i++) {
+        const match = finished_matches.find(
+          (fd) =>
+            cairo.felt(fd.id) ===
+            cairo.felt(match_predictions[i].prediction.match_id)
+        );
+        const prediction_detail = match_predictions[i];
+        const check_win = checkWin(
+          feltToString(prediction_detail.prediction.odds),
+          match.details.goals,
+          match.details.odds,
+          formatUnits(prediction_detail.prediction.stake, 18)
+        );
+        if (check_win.won && Math.round(check_win.payout) > 0) {
+          let reward_construct = {
+            user: BigInt(prediction_detail.user.address.toString()),
+            reward: parseUnits(Math.round(check_win.payout.toString())),
+            point: check_win.odd,
+            match_id: match.id,
+          };
+
+          rewards.push(reward_construct);
+        }
+      }
+
+      console.log("rewards========>>>>", rewards, "<<<<<<<<<========= rewards");
+
+      await register_scores(scores, rewards);
+
+      /// call smart-contract
+
+      await Promise.all(finished_matches.map((mp) => mp.destroy()));
+    } else {
+      const last_match = await Match.findOne({
+        order: [["round", "DESC"]],
+      });
+      if (!last_match) {
+        console.log("INITIALIZED=================>>>>>>>>>>>>>");
+
+        // await this.initializeMatches();
+      }
+      console.log("OOOPPPSSS=================>>>>>>>>>>>>>");
+    }
+
+    return new_matches;
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
+};
+
+exports.initializeMatches = async (last_round = null) => {
+  try {
+    if (!last_round) {
+      const find_match = await Match.findOne();
+      if (find_match) {
+        console.log("Nope");
+        return;
+      }
+    }
+    console.log("prepared");
+    let prepared = [];
+
+    for (let i = 0; i < 4; i++) {
+      const new_schedule = scheduleAllLeagues(
+        VIRTUAL_LEAGUES,
+        prepared.length
+          ? prepared[prepared.length - 1].date + 2 * 60 * 1000
+          : Date.now() + 2 * 60 * 1000,
+        prepared.length
+          ? prepared[prepared.length - 1].round + 1
+          : (last_round ?? i) + 1
+      );
+
+      prepared.push(...new_schedule);
+    }
+    let contract_matches = [];
+    for (let i = 0; i < prepared.length; i++) {
+      const element = prepared[i];
+      let match_construct = {
+        inputed: true,
+        id: cairo.felt(element.id),
+        timestamp: Math.floor(element.details.fixture.timestamp / 1000),
+        round: new CairoOption(CairoOptionVariant.None),
+        match_type: new CairoCustomEnum({ Virtual: {} }),
+      };
+      contract_matches.push(match_construct);
+    }
+    await register_matches(contract_matches);
+
+    await Match.bulkCreate(prepared);
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
+};
+
+// @dicebear/core

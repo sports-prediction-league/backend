@@ -1,12 +1,7 @@
 const { RpcProvider, Contract, Account, cairo, CallData } = require("starknet");
 const ABI = require("../../config/ABI.json");
 
-const CONTRACT_ADDRESS =
-  process.env.NODE_ENV === "production"
-    ? process.env.PROD_CONTRACT_ADDRESS
-    : process.env.NODE_ENV === "test"
-    ? process.env.TEST_CONTRACT_ADDRESS
-    : process.env.DEV_CONTRACT_ADDRESS;
+const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
 const get_provider_and_account = () => {
   const RPC_URL = process.env.RPC_URL;
   const PRIVATE_KEY = process.env.PRIVATE_KEY;
@@ -24,36 +19,37 @@ const get_contract_instance = () => {
   // Connect account with the contract
   contract.connect(account);
 
-  return contract;
+  return { contract, provider };
 };
 
-const register_matches = async (matches, callback) => {
+const register_matches = async (matches) => {
   try {
-    const contract = get_contract_instance();
+    const { contract, provider } = get_contract_instance();
     if (!contract) {
       throw new Error("Contract instance not set");
     }
 
     const tx = await contract.register_matches(matches);
 
-    callback({ success: true, msg: "Matches registered", data: tx });
-    return true;
+    await provider.waitForTransaction(tx.transaction_hash);
+
+    return tx.transaction_hash;
   } catch (error) {
-    // await callback({ success: false, msg: error, data: {} });
     throw error;
   }
 };
 
-const register_scores = async (scores, rewards, callback) => {
+const register_scores = async (scores, rewards) => {
   try {
-    const contract = get_contract_instance();
+    const { contract, provider } = get_contract_instance();
     if (!contract) {
       throw new Error("Contract instance not set");
     }
     const tx = await contract.set_scores(scores, rewards);
 
-    callback({ success: true, msg: "Scores set", data: tx });
-    return true;
+    await provider.waitForTransaction(tx.transaction_hash);
+
+    return tx.transaction_hash;
   } catch (error) {
     throw error;
   }
@@ -83,7 +79,6 @@ const execute_contract_call = async (call) => {
 
     const { account } = get_provider_and_account();
     const tx = await account.execute([call]);
-    // account.waitForTransaction(tx.transaction_hash)
     return { success: true, data: tx, message: "Transaction successful" };
   } catch (error) {
     console.log(error);
@@ -108,24 +103,13 @@ const deploy_account = async (account_payload) => {
     const tx = await account.deployAccount(account_payload);
     return { success: true, data: tx, message: "Deployment successful" };
   } catch (error) {
-    console.log(error);
     return { success: false, data: {}, message: error.message };
-  }
-};
-
-const get_current_round = async () => {
-  try {
-    const contract = get_contract_instance();
-    const round = await contract.get_current_round();
-    return round;
-  } catch (error) {
-    throw error;
   }
 };
 
 const get_user_points = async (id) => {
   try {
-    const contract = get_contract_instance();
+    const { contract } = get_contract_instance();
     const points = await contract.get_user_total_scores(cairo.felt(id));
     return points;
   } catch (error) {
@@ -133,10 +117,10 @@ const get_user_points = async (id) => {
   }
 };
 
-const get_match_predictions = async (id) => {
+const get_matches_predictions = async (ids) => {
   try {
-    const contract = get_contract_instance();
-    const result = await contract.get_match_predictions(cairo.felt(id));
+    const { contract } = get_contract_instance();
+    const result = await contract.get_matches_predictions(ids);
     return result;
   } catch (error) {
     throw error;
@@ -145,7 +129,7 @@ const get_match_predictions = async (id) => {
 
 const get_first_position = async () => {
   try {
-    const contract = get_contract_instance();
+    const { contract } = get_contract_instance();
     const top = await contract.get_first_position();
     return top;
   } catch (error) {
@@ -155,11 +139,10 @@ const get_first_position = async () => {
 
 module.exports = {
   register_matches,
-  get_current_round,
   register_scores,
   get_first_position,
   get_user_points,
   execute_contract_call,
   deploy_account,
-  get_match_predictions,
+  get_matches_predictions,
 };
