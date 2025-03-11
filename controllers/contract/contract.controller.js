@@ -137,6 +137,16 @@ const get_first_position = async () => {
   }
 };
 
+const get_current_round = async () => {
+  try {
+    const { contract } = get_contract_instance();
+    const round = await contract.get_current_round();
+    return round;
+  } catch (error) {
+    throw error;
+  }
+};
+
 module.exports = {
   register_matches,
   register_scores,
@@ -145,4 +155,5 @@ module.exports = {
   execute_contract_call,
   deploy_account,
   get_matches_predictions,
+  get_current_round,
 };
