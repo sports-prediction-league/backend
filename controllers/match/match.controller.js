@@ -1382,8 +1382,8 @@ exports.checkAndScore = async () => {
 exports.initializeMatches = async (last_round = null) => {
   try {
     if (!last_round) {
-      const find_match = await Match.findOne();
-      if (find_match) {
+      const current_round = await get_current_round();
+      if (Number(current_round) > 0) {
         console.log("Nope");
         return;
       }
