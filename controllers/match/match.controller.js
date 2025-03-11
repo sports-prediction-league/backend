@@ -10,6 +10,7 @@ const {
   register_scores,
   get_matches_predictions,
   register_matches,
+  get_current_round,
 } = require("../contract/contract.controller");
 const { Op } = require("sequelize");
 const VIRTUAL_LEAGUES = require("../../config/virtual.json");
@@ -1363,9 +1364,10 @@ exports.checkAndScore = async () => {
         order: [["round", "DESC"]],
       });
       if (!last_match) {
-        console.log("INITIALIZED=================>>>>>>>>>>>>>");
+        const last_round = await get_current_round();
 
-        // await this.initializeMatches();
+        await this.initializeMatches(Number(last_round));
+        console.log("INITIALIZED=================>>>>>>>>>>>>>");
       }
       console.log("OOOPPPSSS=================>>>>>>>>>>>>>");
     }
@@ -1380,8 +1382,8 @@ exports.checkAndScore = async () => {
 exports.initializeMatches = async (last_round = null) => {
   try {
     if (!last_round) {
-      const find_match = await Match.findOne();
-      if (find_match) {
+      const current_round = await get_current_round();
+      if (Number(current_round) > 0) {
         console.log("Nope");
         return;
       }
@@ -1409,7 +1411,7 @@ exports.initializeMatches = async (last_round = null) => {
         inputed: true,
         id: cairo.felt(element.id),
         timestamp: Number(Math.floor(element.details.fixture.timestamp / 1000)),
-        round: new CairoOption(CairoOptionVariant.Some, element.round),
+        round: new CairoOption(CairoOptionVariant.None),
         match_type: new CairoCustomEnum({ Virtual: {} }),
       };
       contract_matches.push(match_construct);
