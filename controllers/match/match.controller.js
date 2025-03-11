@@ -1300,8 +1300,12 @@ exports.checkAndScore = async () => {
           }, {})
         );
 
-        await Promise.all(grouped.map((mp) => register_matches(mp)));
+        for (let i = 0; i < grouped.length; i++) {
+          const element = grouped[i];
+          await register_matches(element);
+        }
 
+        // console.log(JSON.stringify(prepared, null, 2));
         await Match.bulkCreate(prepared);
         new_matches = prepared;
       }
@@ -1418,7 +1422,10 @@ exports.initializeMatches = async (last_round = null) => {
       }, {})
     );
 
-    await Promise.all(grouped.map((mp) => register_matches(mp)));
+    for (let i = 0; i < grouped.length; i++) {
+      const element = grouped[i];
+      await register_matches(element);
+    }
 
     await Match.bulkCreate(prepared);
   } catch (error) {
