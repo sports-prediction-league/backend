@@ -18,6 +18,8 @@ const {
   feltToString,
   formatUnits,
   parseUnits,
+  findParentPath,
+  flattenObject,
 } = require("../../helpers/helpers");
 
 const format_match_data = (match) => {
@@ -892,9 +894,18 @@ function calculatePredictionOdds() {
 
   // Basic match result odds
   const odds = {
-    home: getRandomOdd(),
-    away: getRandomOdd(),
-    draw: getRandomOdd(),
+    home: {
+      odd: getRandomOdd(),
+      id: Math.random().toString(36).substring(2, 12),
+    },
+    away: {
+      odd: getRandomOdd(),
+      id: Math.random().toString(36).substring(2, 12),
+    },
+    draw: {
+      odd: getRandomOdd(),
+      id: Math.random().toString(36).substring(2, 12),
+    },
     // totalGoals: {
     //   under: getRandomOdd(),
     //   over: getRandomOdd(),
@@ -1191,24 +1202,23 @@ const scheduleAllLeagues = (leagues, now = Date.now(), round) => {
 //   return pointer.split("/").reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
 // };
 
-const checkWin = (userPrediction, matchScore, odds, stake) => {
-  // Convert "totalGoals/over" → ["totalGoals", "over"]
-  const predictionKeys = userPrediction.split("/");
-
-  let currentOdds = odds;
-
-  // Traverse nested keys to find the correct odds value
-  for (let key of predictionKeys) {
-    if (currentOdds[key] === undefined) return { won: false, payout: 0 };
-    currentOdds = currentOdds[key];
+const checkWin = (predictionId, matchScore, odds, stake) => {
+  const path = findParentPath(odds, predictionId);
+  const flatten = flattenObject(odds)[predictionId];
+  if (path === null || !flatten) {
+    return { won: false, payout: 0 };
   }
 
   // Validate the prediction
-  const isWinningBet = validatePrediction(userPrediction, matchScore);
+  const isWinningBet = validatePrediction(path, matchScore);
 
   // Calculate payout
   return isWinningBet
-    ? { won: true, payout: stake * currentOdds, odd: currentOdds }
+    ? {
+        won: true,
+        payout: stake * currentOdds,
+        odd: Number(flatten),
+      }
     : { won: false, payout: 0 };
 };
 
@@ -1335,7 +1345,7 @@ exports.checkAndScore = async () => {
         );
         const prediction_detail = match_predictions[i];
         const check_win = checkWin(
-          feltToString(prediction_detail.prediction.odds),
+          feltToString(prediction_detail.prediction.id),
           match.details.goals,
           match.details.odds,
           formatUnits(prediction_detail.prediction.stake, 18)
