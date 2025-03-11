@@ -188,6 +188,10 @@ const task = async () => {
 
 (async function () {
   try {
+    if (process.env.pause === "YES") {
+      console.log("PAUSED");
+      return;
+    }
     await initializeMatches();
     // await checkAndScore();
   } catch (error) {
