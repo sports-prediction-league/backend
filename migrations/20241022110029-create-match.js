@@ -10,7 +10,7 @@ module.exports = {
         primaryKey: true,
       },
       date: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
       round: {

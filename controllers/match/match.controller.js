@@ -5,11 +5,13 @@ const {
   CairoOption,
   CairoOptionVariant,
   CairoCustomEnum,
+  CallData,
 } = require("starknet");
 const {
   register_scores,
   get_matches_predictions,
   register_matches,
+  get_contract_instance,
 } = require("../contract/contract.controller");
 const { Op } = require("sequelize");
 const VIRTUAL_LEAGUES = require("../../config/virtual.json");
@@ -1268,7 +1270,7 @@ exports.checkAndScore = async () => {
             VIRTUAL_LEAGUES,
             prepared.length
               ? prepared[prepared.length - 1].date + 2 * 60 * 1000
-              : last_match?.date + 4 * 60 * 1000,
+              : Number(last_match?.date) + 4 * 60 * 1000,
             prepared.length
               ? prepared[prepared.length - 1].round + 1
               : Number(last_match?.round) + 1
@@ -1278,6 +1280,41 @@ exports.checkAndScore = async () => {
           console.log(new_schedule.map((mp) => mp.date));
           prepared.push(...new_schedule);
         }
+
+        let contract_matches = [];
+        for (let i = 0; i < prepared.length; i++) {
+          const element = prepared[i];
+          let match_construct = {
+            inputed: true,
+            id: cairo.felt(element.id),
+            timestamp: Math.floor(element.details.fixture.timestamp / 1000),
+            round: new CairoOption(CairoOptionVariant.Some, element.round),
+            match_type: new CairoCustomEnum({ Virtual: {} }),
+          };
+          contract_matches.push(match_construct);
+        }
+
+        const grouped = Object.values(
+          contract_matches.reduce((acc, obj) => {
+            acc[obj.round.Some] = acc[obj.round.Some] || [];
+            acc[obj.round.Some].push(obj);
+            return acc;
+          }, {})
+        );
+        let calls = [];
+
+        for (let i = 0; i < grouped.length; i++) {
+          const element = grouped[i];
+          const { contract } = get_contract_instance();
+          const call = contract.populate(
+            "register_matches",
+            CallData.compile(element)
+          );
+          calls.push(call);
+        }
+
+        await register_matches(calls);
+        // console.log(JSON.stringify(prepared, null, 2));
         await Match.bulkCreate(prepared);
         new_matches = prepared;
       }
@@ -1344,7 +1381,7 @@ exports.checkAndScore = async () => {
 
     return new_matches;
   } catch (error) {
-    console.log(error);
+    console.log("error");
     throw error;
   }
 };
@@ -1381,12 +1418,31 @@ exports.initializeMatches = async (last_round = null) => {
         inputed: true,
         id: cairo.felt(element.id),
         timestamp: Math.floor(element.details.fixture.timestamp / 1000),
-        round: new CairoOption(CairoOptionVariant.None),
+        round: new CairoOption(CairoOptionVariant.Some, element.round),
         match_type: new CairoCustomEnum({ Virtual: {} }),
       };
       contract_matches.push(match_construct);
     }
-    await register_matches(contract_matches);
+    const grouped = Object.values(
+      contract_matches.reduce((acc, obj) => {
+        acc[obj.round.Some] = acc[obj.round.Some] || [];
+        acc[obj.round.Some].push(obj);
+        return acc;
+      }, {})
+    );
+    let calls = [];
+
+    for (let i = 0; i < grouped.length; i++) {
+      const element = grouped[i];
+      const { contract } = get_contract_instance();
+      const call = contract.populate(
+        "register_matches",
+        CallData.compile(element)
+      );
+      calls.push(call);
+    }
+    // console.log(grouped);
+    await register_matches(calls);
 
     await Match.bulkCreate(prepared);
   } catch (error) {

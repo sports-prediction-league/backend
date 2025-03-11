@@ -22,17 +22,17 @@ const get_contract_instance = () => {
   return { contract, provider };
 };
 
-const register_matches = async (matches) => {
+const register_matches = async (calls) => {
   try {
-    const { contract, provider } = get_contract_instance();
-    if (!contract) {
-      throw new Error("Contract instance not set");
-    }
+    const { account, provider } = get_provider_and_account();
+    // if (!contract) {
+    //   throw new Error("Contract instance not set");
+    // }
 
-    const tx = await contract.register_matches(matches);
+    const tx = await account.execute(calls);
 
-    await provider.waitForTransaction(tx.transaction_hash);
-
+    const receipt = await provider.waitForTransaction(tx.transaction_hash);
+    console.log(receipt);
     return tx.transaction_hash;
   } catch (error) {
     throw error;
@@ -47,8 +47,8 @@ const register_scores = async (scores, rewards) => {
     }
     const tx = await contract.set_scores(scores, rewards);
 
-    await provider.waitForTransaction(tx.transaction_hash);
-
+    const receipt = await provider.waitForTransaction(tx.transaction_hash);
+    console.log(receipt);
     return tx.transaction_hash;
   } catch (error) {
     throw error;
@@ -145,4 +145,5 @@ module.exports = {
   execute_contract_call,
   deploy_account,
   get_matches_predictions,
+  get_contract_instance,
 };
