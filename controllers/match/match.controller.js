@@ -5,13 +5,11 @@ const {
   CairoOption,
   CairoOptionVariant,
   CairoCustomEnum,
-  CallData,
 } = require("starknet");
 const {
   register_scores,
   get_matches_predictions,
   register_matches,
-  get_contract_instance,
 } = require("../contract/contract.controller");
 const { Op } = require("sequelize");
 const VIRTUAL_LEAGUES = require("../../config/virtual.json");
@@ -1301,20 +1299,9 @@ exports.checkAndScore = async () => {
             return acc;
           }, {})
         );
-        let calls = [];
 
-        for (let i = 0; i < grouped.length; i++) {
-          const element = grouped[i];
-          const { contract } = get_contract_instance();
-          const call = contract.populate(
-            "register_matches",
-            CallData.compile(element)
-          );
-          calls.push(call);
-        }
+        await Promise.all(grouped.map((mp) => register_matches(mp)));
 
-        await register_matches(calls);
-        // console.log(JSON.stringify(prepared, null, 2));
         await Match.bulkCreate(prepared);
         new_matches = prepared;
       }
@@ -1417,7 +1404,7 @@ exports.initializeMatches = async (last_round = null) => {
       let match_construct = {
         inputed: true,
         id: cairo.felt(element.id),
-        timestamp: Math.floor(element.details.fixture.timestamp / 1000),
+        timestamp: Number(Math.floor(element.details.fixture.timestamp / 1000)),
         round: new CairoOption(CairoOptionVariant.Some, element.round),
         match_type: new CairoCustomEnum({ Virtual: {} }),
       };
@@ -1430,19 +1417,8 @@ exports.initializeMatches = async (last_round = null) => {
         return acc;
       }, {})
     );
-    let calls = [];
 
-    for (let i = 0; i < grouped.length; i++) {
-      const element = grouped[i];
-      const { contract } = get_contract_instance();
-      const call = contract.populate(
-        "register_matches",
-        CallData.compile(element)
-      );
-      calls.push(call);
-    }
-    // console.log(grouped);
-    await register_matches(calls);
+    await Promise.all(grouped.map((mp) => register_matches(mp)));
 
     await Match.bulkCreate(prepared);
   } catch (error) {
@@ -1450,5 +1426,3 @@ exports.initializeMatches = async (last_round = null) => {
     throw error;
   }
 };
-
-// @dicebear/core
