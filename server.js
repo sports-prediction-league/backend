@@ -158,6 +158,10 @@ const socket = new ServerSocket(server);
 let isRunning = false;
 
 const task = async () => {
+  if (process.env.pause === "YES") {
+    console.log("PAUSED");
+    return;
+  }
   if (isRunning) {
     console.log("Previous task still running, skipping this iteration.");
     return;
