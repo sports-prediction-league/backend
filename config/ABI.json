@@ -94,13 +94,22 @@
     ]
   },
   {
+    "type": "enum",
+    "name": "core::option::Option::<core::felt252>",
+    "variants": [
+      { "name": "Some", "type": "core::felt252" },
+      { "name": "None", "type": "()" }
+    ]
+  },
+  {
     "type": "struct",
     "name": "spl::mods::types::Prediction",
     "members": [
       { "name": "inputed", "type": "core::bool" },
       { "name": "match_id", "type": "core::felt252" },
-      { "name": "odds", "type": "core::felt252" },
-      { "name": "stake", "type": "core::integer::u256" }
+      { "name": "id", "type": "core::felt252" },
+      { "name": "stake", "type": "core::integer::u256" },
+      { "name": "pair", "type": "core::option::Option::<core::felt252>" }
     ]
   },
   {
@@ -256,6 +265,24 @@
         "name": "get_user_predictions",
         "inputs": [
           { "name": "round", "type": "core::integer::u256" },
+          {
+            "name": "user",
+            "type": "core::starknet::contract_address::ContractAddress"
+          }
+        ],
+        "outputs": [
+          { "type": "core::array::Array::<spl::mods::types::Prediction>" }
+        ],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
+        "name": "get_user_matches_predictions",
+        "inputs": [
+          {
+            "name": "matches",
+            "type": "core::array::Array::<core::felt252>"
+          },
           {
             "name": "user",
             "type": "core::starknet::contract_address::ContractAddress"
