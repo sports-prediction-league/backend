@@ -1266,14 +1266,15 @@ exports.checkAndScore = async () => {
 
       let diff = Number(last_match.round) - Number(current_match.round);
 
-      console.log("diff==========>>>", diff);
+      // console.log("diff==========>>>", diff);
 
       if (diff < 3) {
-        console.log(
-          "refill ==========================================================>>>>>>>>>",
-          3 - diff
-        );
+        // console.log(
+        //   "refill ==========================================================>>>>>>>>>",
+        //   3 - diff
+        // );
         let prepared = [];
+        let current_round = await get_current_round();
         for (let i = 0; i < 3 - diff; i++) {
           const new_schedule = scheduleAllLeagues(
             VIRTUAL_LEAGUES,
@@ -1282,15 +1283,16 @@ exports.checkAndScore = async () => {
               : Number(last_match?.date) + 4 * 60 * 1000,
             prepared.length
               ? prepared[prepared.length - 1].round + 1
-              : Number(last_match?.round) + 1
+              : Number(current_round || 0) + 1
           );
 
-          console.log(new_schedule.length);
-          console.log(new_schedule.map((mp) => mp.date));
+          // console.log(new_schedule.length);
+          // console.log(new_schedule.map((mp) => mp.date));
           prepared.push(...new_schedule);
         }
 
         let contract_matches = [];
+        // let current_round = await get_current_round();
         for (let i = 0; i < prepared.length; i++) {
           const element = prepared[i];
           let match_construct = {
@@ -1325,14 +1327,14 @@ exports.checkAndScore = async () => {
 
       let scores = finished_matches.map((mp) => {
         return {
-          match_id: cairo.felt(mp.id),
+          match_id: mp.id,
           inputed: true,
           home: cairo.uint256(mp.getDetails(false).goals.home),
           away: cairo.uint256(mp.getDetails(false).goals.away),
         };
       });
 
-      console.log(scores);
+      console.log("Scores here =====>>>>>", scores);
 
       const match_predictions = await get_matches_predictions(
         finished_matches.map((mp) => cairo.felt(mp.id))
@@ -1398,7 +1400,7 @@ exports.initializeMatches = async (last_round = null) => {
         return;
       }
     }
-    console.log("prepared");
+    console.log("prepared", last_round);
     let prepared = [];
 
     for (let i = 0; i < 4; i++) {
