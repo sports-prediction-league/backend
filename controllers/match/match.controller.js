@@ -1327,7 +1327,7 @@ exports.checkAndScore = async () => {
 
       let scores = finished_matches.map((mp) => {
         return {
-          match_id: mp.id,
+          match_id: cairo.felt(mp.id),
           inputed: true,
           home: cairo.uint256(mp.getDetails(false).goals.home),
           away: cairo.uint256(mp.getDetails(false).goals.away),
