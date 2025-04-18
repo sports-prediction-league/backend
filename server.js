@@ -13,7 +13,7 @@ const http = require("http");
 const morgan = require("morgan");
 
 const {
-  get_matches,
+  getMatches,
   checkAndScore,
   initializeMatches,
 } = require("./controllers/match/match.controller");
@@ -145,7 +145,7 @@ app.get("/", (_, res) => {
   res.status(200).send("server running successfully");
 });
 
-app.get("/matches", get_matches);
+app.get("/matches", getMatches);
 
 const server = http.createServer(app, {
   cors: {

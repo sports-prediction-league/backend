@@ -39,13 +39,13 @@ const register_matches = async (matches) => {
   }
 };
 
-const register_scores = async (scores, rewards) => {
+const register_scores = async (scores) => {
   try {
     const { contract, provider } = get_contract_instance();
     if (!contract) {
       throw new Error("Contract instance not set");
     }
-    const tx = await contract.set_scores(scores, rewards);
+    const tx = await contract.set_scores(scores);
 
     const receipt = await provider.waitForTransaction(tx.transaction_hash);
     console.log(receipt);
