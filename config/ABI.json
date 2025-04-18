@@ -25,14 +25,6 @@
     ]
   },
   {
-    "type": "struct",
-    "name": "spl::mods::types::Leaderboard",
-    "members": [
-      { "name": "user", "type": "spl::mods::types::User" },
-      { "name": "total_score", "type": "core::integer::u256" }
-    ]
-  },
-  {
     "type": "enum",
     "name": "core::bool",
     "variants": [
@@ -57,6 +49,14 @@
     ]
   },
   {
+    "type": "enum",
+    "name": "core::option::Option::<core::felt252>",
+    "variants": [
+      { "name": "Some", "type": "core::felt252" },
+      { "name": "None", "type": "()" }
+    ]
+  },
+  {
     "type": "struct",
     "name": "spl::mods::types::Match",
     "members": [
@@ -67,7 +67,44 @@
         "name": "round",
         "type": "core::option::Option::<core::integer::u256>"
       },
-      { "name": "match_type", "type": "spl::mods::types::MatchType" }
+      { "name": "match_type", "type": "spl::mods::types::MatchType" },
+      {
+        "name": "winner_odd",
+        "type": "core::option::Option::<core::felt252>"
+      }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "spl::mods::types::Leaderboard",
+    "members": [
+      { "name": "user", "type": "spl::mods::types::User" },
+      { "name": "total_score", "type": "core::integer::u256" }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "spl::mods::types::Odd",
+    "members": [
+      { "name": "id", "type": "core::felt252" },
+      { "name": "value", "type": "core::integer::u256" }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "spl::mods::types::RawMatch",
+    "members": [
+      { "name": "id", "type": "core::felt252" },
+      { "name": "timestamp", "type": "core::integer::u64" },
+      {
+        "name": "round",
+        "type": "core::option::Option::<core::integer::u256>"
+      },
+      { "name": "match_type", "type": "spl::mods::types::MatchType" },
+      {
+        "name": "odds",
+        "type": "core::array::Array::<spl::mods::types::Odd>"
+      }
     ]
   },
   {
@@ -76,29 +113,23 @@
     "members": [
       { "name": "inputed", "type": "core::bool" },
       { "name": "match_id", "type": "core::felt252" },
-      { "name": "home", "type": "core::integer::u256" },
-      { "name": "away", "type": "core::integer::u256" }
+      { "name": "winner_odd", "type": "core::felt252" }
     ]
   },
   {
     "type": "struct",
-    "name": "spl::mods::types::Reward",
+    "name": "spl::mods::types::PredictionVariants",
     "members": [
-      {
-        "name": "user",
-        "type": "core::starknet::contract_address::ContractAddress"
-      },
-      { "name": "reward", "type": "core::integer::u256" },
-      { "name": "point", "type": "core::integer::u256" },
-      { "name": "match_id", "type": "core::felt252" }
+      { "name": "match_id", "type": "core::felt252" },
+      { "name": "odd", "type": "core::felt252" }
     ]
   },
   {
     "type": "enum",
-    "name": "core::option::Option::<core::felt252>",
+    "name": "spl::mods::types::PredictionType",
     "variants": [
-      { "name": "Some", "type": "core::felt252" },
-      { "name": "None", "type": "()" }
+      { "name": "Single", "type": "spl::mods::types::PredictionVariants" },
+      { "name": "Multiple", "type": "core::felt252" }
     ]
   },
   {
@@ -106,18 +137,34 @@
     "name": "spl::mods::types::Prediction",
     "members": [
       { "name": "inputed", "type": "core::bool" },
-      { "name": "match_id", "type": "core::felt252" },
-      { "name": "id", "type": "core::felt252" },
       { "name": "stake", "type": "core::integer::u256" },
-      { "name": "pair", "type": "core::option::Option::<core::felt252>" }
+      {
+        "name": "prediction_type",
+        "type": "spl::mods::types::PredictionType"
+      }
     ]
   },
   {
     "type": "enum",
-    "name": "core::option::Option::<spl::mods::types::Leaderboard>",
+    "name": "spl::mods::types::RawPredictionType",
     "variants": [
-      { "name": "Some", "type": "spl::mods::types::Leaderboard" },
-      { "name": "None", "type": "()" }
+      { "name": "Single", "type": "spl::mods::types::PredictionVariants" },
+      {
+        "name": "Multiple",
+        "type": "core::array::Array::<spl::mods::types::PredictionVariants>"
+      }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "spl::mods::types::RawPrediction",
+    "members": [
+      { "name": "stake", "type": "core::integer::u256" },
+      {
+        "name": "prediction_type",
+        "type": "spl::mods::types::RawPredictionType"
+      },
+      { "name": "pair", "type": "core::option::Option::<core::felt252>" }
     ]
   },
   {
@@ -179,19 +226,6 @@
       },
       {
         "type": "function",
-        "name": "get_leaderboard_by_round",
-        "inputs": [
-          { "name": "start_index", "type": "core::integer::u256" },
-          { "name": "size", "type": "core::integer::u256" },
-          { "name": "round", "type": "core::integer::u256" }
-        ],
-        "outputs": [
-          { "type": "core::array::Array::<spl::mods::types::Leaderboard>" }
-        ],
-        "state_mutability": "view"
-      },
-      {
-        "type": "function",
         "name": "get_erc20",
         "inputs": [],
         "outputs": [
@@ -222,6 +256,16 @@
       },
       {
         "type": "function",
+        "name": "get_match_odd",
+        "inputs": [
+          { "name": "match_id", "type": "core::felt252" },
+          { "name": "odd_id", "type": "core::felt252" }
+        ],
+        "outputs": [{ "type": "core::integer::u256" }],
+        "state_mutability": "view"
+      },
+      {
+        "type": "function",
         "name": "get_leaderboard",
         "inputs": [
           { "name": "start_index", "type": "core::integer::u256" },
@@ -238,7 +282,7 @@
         "inputs": [
           {
             "name": "matches",
-            "type": "core::array::Array::<spl::mods::types::Match>"
+            "type": "core::array::Array::<spl::mods::types::RawMatch>"
           }
         ],
         "outputs": [],
@@ -251,10 +295,6 @@
           {
             "name": "scores",
             "type": "core::array::Array::<spl::mods::types::Score>"
-          },
-          {
-            "name": "rewards",
-            "type": "core::array::Array::<spl::mods::types::Reward>"
           }
         ],
         "outputs": [],
@@ -295,11 +335,9 @@
       },
       {
         "type": "function",
-        "name": "get_match_scores",
-        "inputs": [{ "name": "round", "type": "core::integer::u256" }],
-        "outputs": [
-          { "type": "core::array::Array::<spl::mods::types::Score>" }
-        ],
+        "name": "get_pair_count",
+        "inputs": [{ "name": "pair_id", "type": "core::felt252" }],
+        "outputs": [{ "type": "core::integer::u256" }],
         "state_mutability": "view"
       },
       {
@@ -335,30 +373,9 @@
       },
       {
         "type": "function",
-        "name": "get_first_position",
-        "inputs": [],
-        "outputs": [
-          { "type": "core::option::Option::<spl::mods::types::Leaderboard>" }
-        ],
-        "state_mutability": "view"
-      },
-      {
-        "type": "function",
-        "name": "make_bulk_prediction",
-        "inputs": [
-          {
-            "name": "predictions",
-            "type": "core::array::Array::<spl::mods::types::Prediction>"
-          }
-        ],
-        "outputs": [],
-        "state_mutability": "external"
-      },
-      {
-        "type": "function",
         "name": "make_prediction",
         "inputs": [
-          { "name": "prediction", "type": "spl::mods::types::Prediction" }
+          { "name": "predictions", "type": "spl::mods::types::RawPrediction" }
         ],
         "outputs": [],
         "state_mutability": "external"
