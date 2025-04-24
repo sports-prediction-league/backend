@@ -342,6 +342,18 @@
       },
       {
         "type": "function",
+        "name": "make_bulk_prediction",
+        "inputs": [
+          {
+            "name": "predictions",
+            "type": "core::array::Array::<spl::mods::types::RawPrediction>"
+          }
+        ],
+        "outputs": [],
+        "state_mutability": "external"
+      },
+      {
+        "type": "function",
         "name": "get_current_round",
         "inputs": [],
         "outputs": [{ "type": "core::integer::u256" }],

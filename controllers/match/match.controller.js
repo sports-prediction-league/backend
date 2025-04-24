@@ -18,6 +18,7 @@ const {
   register_scores,
   register_matches,
   get_current_round,
+  get_provider_and_account,
 } = require("../contract/contract.controller");
 
 /**
@@ -195,33 +196,39 @@ class MatchService {
    * @returns {Array} New matches
    */
   static async generateAdditionalRounds(lastMatch, diff) {
-    let prepared = [];
-    const currentRound = await get_current_round();
+    try {
+      let prepared = [];
+      const currentRound = await get_current_round();
 
-    for (let i = 0; i < 3 - diff; i++) {
-      const startTime = prepared.length
-        ? prepared[prepared.length - 1].date + 2 * 60 * 1000
-        : Number(lastMatch?.date) + 4 * 60 * 1000;
+      for (let i = 0; i < 3 - diff; i++) {
+        const startTime = prepared.length
+          ? prepared[prepared.length - 1].date + 2 * 60 * 1000
+          : Number(lastMatch?.date) + 4 * 60 * 1000 < Date.now()
+          ? Date.now() + 4 * 60 * 1000
+          : Number(lastMatch?.date) + 4 * 60 * 1000;
 
-      const round = prepared.length
-        ? prepared[prepared.length - 1].round + 1
-        : Number(currentRound || 0) + 1;
+        const round = prepared.length
+          ? prepared[prepared.length - 1].round + 1
+          : Number(currentRound || 0) + 1;
 
-      const newSchedule = GameGenerator.scheduleAllLeagues(
-        VIRTUAL_LEAGUES,
-        startTime,
-        round
-      );
-      prepared.push(...newSchedule);
+        const newSchedule = GameGenerator.scheduleAllLeagues(
+          VIRTUAL_LEAGUES,
+          startTime,
+          round
+        );
+        prepared.push(...newSchedule);
+      }
+
+      // Register matches with contract
+      await this.registerMatchesWithContract(prepared);
+
+      // Save to database
+      await Match.bulkCreate(prepared);
+
+      return prepared;
+    } catch (error) {
+      throw error;
     }
-
-    // Register matches with contract
-    await this.registerMatchesWithContract(prepared);
-
-    // Save to database
-    await Match.bulkCreate(prepared);
-
-    return prepared;
   }
 
   /**
@@ -251,16 +258,33 @@ class MatchService {
 
     console.log("Processing scores:", scores);
 
-    // const matchIds = finishedMatches.map((match) => cairo.felt(match.id));
-    // const matchPredictions = await get_matches_predictions(matchIds);
-
-    // const rewards = this.calculateRewards(matchPredictions, finishedMatches);
-
     // Register scores and rewards with contracts
     await register_scores(scores);
 
     // Remove processed matches
-    await Promise.all(finishedMatches.map((match) => match.destroy()));
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000); // 1 day ago
+    const matchUpdate = Match.update(
+      { scored: true },
+      {
+        where: {
+          id: {
+            [Op.in]: finishedMatches.map((match) => match.id),
+          },
+        },
+      }
+    );
+    const deleteMatch = Match.destroy({
+      where: {
+        date: {
+          [Op.lte]: oneDayAgo, // Matches 1 day or more old
+        },
+      },
+    });
+
+    await Promise.all([matchUpdate, deleteMatch]);
+    // await Promise.all(
+    //   finishedMatches.map((match) => match.update({ scored: true }))
+    // );
   }
 
   /**
@@ -355,50 +379,53 @@ class MatchService {
    * @param {Array} matches - Matches to register
    */
   static async registerMatchesWithContract(matches) {
-    const contractMatches = matches.map((match) => {
-      let odds = [];
-      for (let i = 0; i < Object.keys(match.details.odds).length; i++) {
-        const element = Object.keys(match.details.odds)[i];
-        const odd_details = match.details.odds[element];
-        odds.push({
-          id: cairo.felt(odd_details.id),
-          value: cairo.uint256(
-            this.decimalToScaledInt(
-              Number(odd_details.odd).toFixed(2).toString(),
-              2
-            )
-          ),
-        });
+    try {
+      const contractMatches = matches.map((match) => {
+        let odds = [];
+        for (let i = 0; i < Object.keys(match.details.odds).length; i++) {
+          const element = Object.keys(match.details.odds)[i];
+          const odd_details = match.details.odds[element];
+          odds.push({
+            id: cairo.felt(odd_details.id),
+            value: cairo.uint256(
+              this.decimalToScaledInt(
+                Number(odd_details.odd).toFixed(2).toString(),
+                2
+              )
+            ),
+          });
+        }
+        return {
+          id: cairo.felt(match.id),
+          timestamp: Math.floor(match.details.fixture.timestamp / 1000),
+          round: new CairoOption(CairoOptionVariant.Some, match.round),
+          match_type: new CairoCustomEnum({ Virtual: {} }),
+          odds,
+        };
+      });
+
+      // Group by round
+      const grouped = Object.values(
+        contractMatches.reduce((acc, obj) => {
+          const roundKey = obj.round.Some || "None";
+          acc[roundKey] = acc[roundKey] || [];
+          acc[roundKey].push(obj);
+          return acc;
+        }, {})
+      );
+
+      //  Register matches by round
+      for (const roundMatches of grouped) {
+        await register_matches(roundMatches);
       }
-      return {
-        id: cairo.felt(match.id),
-        timestamp: Math.floor(match.details.fixture.timestamp / 1000),
-        round: new CairoOption(CairoOptionVariant.Some, match.round),
-        match_type: new CairoCustomEnum({ Virtual: {} }),
-        odds,
-      };
-    });
-    // console.log(
-    //   JSON.stringify(contractMatches, null, 2),
-    //   "matches here ======>>>>"
-    // );
 
-    // console.log(contractMatches.map((mp) => mp.odds));
-    // return;
+      // const { account } = get_provider_and_account();
 
-    // Group by round
-    const grouped = Object.values(
-      contractMatches.reduce((acc, obj) => {
-        const roundKey = obj.round.Some || "None";
-        acc[roundKey] = acc[roundKey] || [];
-        acc[roundKey].push(obj);
-        return acc;
-      }, {})
-    );
+      // const tx = await account.execute(grouped);
 
-    // Register matches by round
-    for (const roundMatches of grouped) {
-      await register_matches(roundMatches);
+      // await account.waitForTransaction(tx.transaction_hash);
+    } catch (error) {
+      throw error;
     }
   }
 }

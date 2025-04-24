@@ -78,10 +78,10 @@ const execute_contract_call = async (call) => {
     }
 
     const { account } = get_provider_and_account();
-    const tx = await account.execute([call]);
+    const tx = await account.execute(call);
     return { success: true, data: tx, message: "Transaction successful" };
   } catch (error) {
-    console.log(error);
+    console.log(error, "======>>>>>>>>>\n\n\n\n\n\n\n\n\n========>>>>>>> END");
     const match = error.message.match(/'([^']+)'/);
 
     // If a match is found, get the error message
@@ -156,4 +156,5 @@ module.exports = {
   deploy_account,
   get_matches_predictions,
   get_current_round,
+  get_provider_and_account,
 };
