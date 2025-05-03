@@ -1,4 +1,7 @@
 const { Server } = require("socket.io");
+const {
+  getMatchesEventsByIds,
+} = require("../controllers/match/match.controller");
 
 class ServerSocket {
   /** Master list of all connected users */
@@ -20,6 +23,11 @@ class ServerSocket {
 
   StartListeners = (socket) => {
     console.info("Message received from " + socket.id);
+
+    socket.on("match-events-request", async (ids) => {
+      let matches = await getMatchesEventsByIds(ids);
+      socket.emit("match-events-response", matches);
+    });
     // socket.emit('me', socket.id)
     // socket.on("handshake", async ({ userId }) => {
     //   if (userId) {

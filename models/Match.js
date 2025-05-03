@@ -15,6 +15,19 @@ module.exports = (sequelize, DataTypes) => {
         updatedAt: undefined,
       };
     }
+
+    getDetails(hidden = true) {
+      const jsonString = this.getDataValue("details");
+      const parsedData = jsonString ? JSON.parse(jsonString) : null;
+
+      // Perform additional checks using extraParam
+
+      if (hidden && parsedData) {
+        return { ...parsedData, events: undefined, goals: undefined };
+      }
+
+      return parsedData;
+    }
   }
   Match.init(
     {
@@ -28,7 +41,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       date: {
-        type: DataTypes.DATE,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
       scored: {
@@ -36,14 +49,18 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: false,
       },
+      type: {
+        type: DataTypes.ENUM("LIVE", "VIRTUAL"),
+        allowNull: false,
+      },
       details: {
         type: DataTypes.TEXT,
         allowNull: true,
-        get() {
-          // Custom getter for parsing JSON when retrieved from the database
-          const jsonString = this.getDataValue("details");
-          return jsonString ? JSON.parse(jsonString) : null;
-        },
+        // get() {
+        //   // Custom getter for parsing JSON when retrieved from the database
+        //   const jsonString = this.getDataValue("details");
+        //   return jsonString ? JSON.parse(jsonString) : null;
+        // },
         set(value) {
           // Custom setter for stringifying JSON when stored in the database
           this.setDataValue("details", value ? JSON.stringify(value) : null);

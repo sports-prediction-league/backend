@@ -1,803 +1,849 @@
-const axios = require("axios");
-const { Match, sequelize } = require("../../models");
-const { cairo } = require("starknet");
+const { Match } = require("../../models");
 const {
-  get_current_round,
-  register_scores,
-  get_match_predictions,
-} = require("../contract/contract.controller");
+  cairo,
+  CairoOption,
+  CairoOptionVariant,
+  CairoCustomEnum,
+} = require("starknet");
 const { Op } = require("sequelize");
-const dummyMatches = require("./dummy_match.json");
+const VIRTUAL_LEAGUES = require("../../config/virtual.json");
+const {
+  feltToString,
+  formatUnits,
+  parseUnits,
+  findParentPath,
+  flattenObject,
+} = require("../../helpers/helpers");
+const {
+  register_scores,
+  register_matches,
+  get_current_round,
+} = require("../contract/contract.controller");
 
-const format_match_data = (match) => {
-  const home_team = match.sport_event.competitors.find(
-    (fd) => fd.qualifier === "home"
-  );
-  const away_team = match.sport_event.competitors.find(
-    (fd) => fd.qualifier === "away"
-  );
+/**
+ * CONSTANTS
+ */
+const GAME_DURATION = 120; // Duration of a game in minutes
+const MINUTES_BETWEEN_LEAGUES = 2; // Minutes between league schedules
+const DEFAULT_MATCH_ROUNDS = 4; // Default number of match rounds to generate
+const MIN_ODD = 1.1;
+const MAX_ODD = 6.0;
 
-  if (home_team && away_team) {
-    return {
-      success: true,
-      match: {
-        fixture: {
-          id: match.sport_event.id.split(":").pop(),
-          date: match.sport_event.start_time,
-          status: {
-            match_status: match.sport_event_status.match_status,
-            status: match.sport_event_status.status,
-          },
+/**
+ * Match Service - Handles fetching and processing matches
+ */
+class MatchService {
+  /**
+   * Get match events by IDs
+   * @param {Array} ids - Match IDs to fetch
+   * @returns {Array} Matches with details
+   */
+  static async getMatchesEventsByIds(ids) {
+    try {
+      const matches = await Match.findAll({
+        order: [["date", "ASC"]],
+        where: {
+          id: { [Op.in]: ids },
+          date: { [Op.lte]: Date.now() },
+          type: "VIRTUAL",
         },
-        league: {
-          id: match.sport_event.sport_event_context.competition.id
-            .split(":")
-            .pop(),
-          name: match.sport_event.sport_event_context.competition.name,
-          season: match.sport_event.sport_event_context.season,
-          round: match.sport_event.sport_event_context.round.number,
-        },
-        goals:
-          match.sport_event_status.home_score ||
-          match.sport_event_status.away_score
-            ? {
-                home: match.sport_event_status.home_score,
-                away: match.sport_event_status.away_score,
-              }
-            : undefined,
-        teams: {
-          home: {
-            id: home_team.id.split(":").pop(),
-            name: home_team.name,
-          },
-          away: {
-            id: away_team.id.split(":").pop(),
-            name: away_team.name,
-          },
-        },
-
-        statistics: match.statistics,
-      },
-    };
-  }
-
-  return { success: false, match: null };
-};
-
-const normalizeName = (name) => {
-  // Convert to lowercase, and remove common suffixes like "FC", "SC", etc.
-  return name
-    .toLowerCase()
-    .replace(/\s?(fc|sc|club|united|city)$/i, "")
-    .trim();
-};
-
-const groupByUTCHours = (
-  arr,
-  startHourUTC = 10,
-  endHourUTC = 21,
-  limit = 10
-) => {
-  const prioritizedTeamNames = [
-    "manchester united",
-    "real madrid",
-    "barcelona",
-    "bayern munich",
-    "bayern",
-    "liverpool",
-    "paris saint-germain",
-    "paris",
-    "juventus",
-    "chelsea",
-    "manchester city",
-    "arsenal",
-    "ac milan",
-    "ac",
-    "inter milan",
-    "inter",
-    "atletico madrid",
-    "atletico",
-    "tottenham hotspur",
-    "tottenham",
-    "borussia dortmund",
-    "dortmund",
-    "ajax",
-    "napoli",
-    "as roma",
-    "benfica",
-    "sevilla",
-    "leicester city",
-    "leicester",
-    "valencia",
-    "lyon",
-    "villarreal",
-    "everton",
-    "monaco",
-    "porto",
-    "wolfsburg",
-    "aston villa",
-    "aston",
-    "west ham united",
-    "west ham",
-    "full ham",
-    "monterrey",
-    "roma",
-  ];
-  const groupedByHour = {};
-  const prioritizedItems = [];
-  const result = [];
-
-  // Group the objects by the UTC hour of their fixture date
-  for (const item of arr) {
-    const date = new Date(item.sport_event.start_time); // Access the date field
-    const utcHours = date.getUTCHours();
-
-    // Prioritize items where the team names match any in the prioritizedTeamNames array
-
-    const exists = item.sport_event.competitors.some((competitor) =>
-      prioritizedTeamNames.some(
-        (team) => normalizeName(competitor.name) === normalizeName(team)
-      )
-    );
-
-    if (
-      exists &&
-      item.sport_event_status.match_status === "not_started" &&
-      item.sport_event.start_time_confirmed
-    ) {
-      prioritizedItems.push(format_match_data(item).match);
-    } else if (
-      utcHours >= startHourUTC &&
-      utcHours < endHourUTC &&
-      item.sport_event_status.match_status === "not_started" &&
-      item.sport_event.start_time_confirmed
-    ) {
-      // If this hour doesn't have a group yet, initialize it
-      if (!groupedByHour[utcHours]) {
-        groupedByHour[utcHours] = [];
-      }
-      groupedByHour[utcHours].push(format_match_data(item).match); // Push the entire object, not just the date
-    }
-  }
-
-  // Add prioritized items first, but limit the total results to the given limit
-  for (const item of prioritizedItems) {
-    result.push(item);
-    // if (result.length === limit) {
-    //   return result; // Stop if we reach the limit
-    // }
-  }
-
-  // Randomly pick items from each hour group until we have the limit
-  while (result.length < limit) {
-    for (const hour in groupedByHour) {
-      const matches = groupedByHour[hour];
-
-      // If there are still matches in this group, pick one
-      if (matches.length > 0) {
-        result.push(matches.shift()); // Remove the first match from the group and add to result
-
-        if (result.length === limit) {
-          break; // Stop when we reach the limit
-        }
-      }
-    }
-
-    // If we exhausted all groups and still don't have enough results, stop
-    if (Object.values(groupedByHour).every((matches) => matches.length === 0)) {
-      break;
-    }
-  }
-
-  return result;
-};
-
-const formatDateFromString = (dateString) => {
-  const date = new Date(dateString);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0"); // getMonth() is zero-based
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-async function get_api_matches_by_date(date) {
-  try {
-    const SPORT_RADAR_API_KEY = process.env.SPORT_RADAR_API_KEY;
-    const response = await axios.get(
-      `https://api.sportradar.com/soccer-extended/trial/v4/en/schedules/${formatDateFromString(
-        date.trim()
-      )}/schedules.json?api_key=${SPORT_RADAR_API_KEY}`
-    );
-    return response;
-  } catch (error) {
-    throw error;
-  }
-}
-
-async function get_api_matches_by_id(id) {
-  try {
-    const SPORT_RADAR_API_KEY = process.env.SPORT_RADAR_API_KEY;
-    const response = await axios.get(
-      `https://api.sportradar.com/soccer-extended/trial/v4/en/sport_events/sr%3Asport_event%3A${id}/summary.json?api_key=${SPORT_RADAR_API_KEY}`
-    );
-    return response;
-  } catch (error) {
-    throw error;
-  }
-}
-
-function getGoalRange(score) {
-  const totalGoals = score[0] + score[1];
-  return totalGoals <= 2 ? "0-2" : "3+";
-}
-
-function calculateScore(goals, prediction) {
-  if (!goals.home || !goals.away) return 0;
-  let point = 0;
-  const home = prediction.split(":")[0];
-  const away = prediction.split(":")[1];
-  // Calculate the goal range for the actual result and user prediction
-  const actualGoalRange = getGoalRange([
-    Number(goals.home.toString()),
-    Number(goals.away.toString()),
-  ]);
-  const predictedGoalRange = getGoalRange([
-    Number(home.toString().trim()),
-    Number(away.toString().trim()),
-  ]);
-
-  // Determine if the actual match result is a draw or if one team scored more
-  const actualResult =
-    goals.home === goals.away
-      ? "draw"
-      : goals.home > goals.away
-      ? "home"
-      : "away";
-  const predictedResult =
-    home === away ? "draw" : home > away ? "home" : "away";
-
-  // 5 Points: Exact score match and correct goal range
-  if (
-    goals?.home?.toString()?.trim() === home?.toString()?.trim() &&
-    goals?.away?.toString()?.trim() === away?.toString()?.trim() &&
-    actualGoalRange === predictedGoalRange
-  ) {
-    point = 5; // Exact match
-  }
-  // 3 Point: Correct match result and goal range, but incorrect exact score
-  else if (
-    predictedResult === actualResult &&
-    actualGoalRange === predictedGoalRange
-  ) {
-    point = 3; // Correct result and goal range
-  }
-  // 2 Point: Correct match result only
-  else if (predictedResult === actualResult) {
-    point = 2; // Correct result but incorrect score and goal range
-  }
-
-  return point;
-}
-
-exports.update_past_or_current_matches = async () => {
-  const transaction = await sequelize.transaction();
-  try {
-    const currentDateUtc = new Date().toISOString();
-    const matches = await Match.findAll({
-      where: {
-        scored: false,
-        date: {
-          [Op.lte]: currentDateUtc,
-        },
-      },
-    });
-
-    if (!matches.length) {
-      console.log("No matches to update.");
-      await transaction.rollback();
-      return [];
-    }
-
-    const ended_matches = [];
-    const updated_matches = [];
-
-    // Process matches in parallel
-    await Promise.all(
-      matches.map(async (match) => {
-        try {
-          const response = await get_api_matches_by_id(match.id);
-          const { match: match_response, success } = format_match_data(
-            response.data
-          );
-
-          if (success) {
-            if (match_response.fixture.status.match_status === "ended") {
-              ended_matches.push({
-                inputed: true,
-                match_id: match_response.fixture.id,
-                home: Number(match_response.goals?.home ?? 0),
-                away: Number(match_response.goals?.away ?? 0),
-              });
-            }
-
-            await match.update(
-              {
-                details: match_response,
-                scored:
-                  match_response.fixture.status.match_status === "ended"
-                    ? true
-                    : match.scored,
-              },
-              { transaction }
-            );
-
-            updated_matches.push(match);
-          } else {
-            console.log("no success ===>>>", match.dataValues);
-          }
-        } catch (error) {
-          console.error(`Error updating match ID ${match.id}:`, error);
-          throw error; // Ensure transaction rollback for any error
-        }
-      })
-    );
-
-    // Process ended matches
-    if (ended_matches.length) {
-      let construct = [];
-      let calculated_construct = [];
-      let reward_pool = 0;
-      let total_contribution = 0;
-      let winners_points = [];
-      const percentage_cut = 0.02;
-      let accumulated_precentage = 0;
-
-      for (let i = 0; i < ended_matches.length; i++) {
-        const ended_match = ended_matches[i];
-        const response = await get_match_predictions(ended_match.match_id);
-        construct.push(response);
-      }
-
-      for (let i = 0; i < construct.length; i++) {
-        const element = construct[i];
-        const pool = Number(element.match_pool);
-        if (pool < 1) {
-          continue;
-        }
-        for (let j = 0; j < element.predictions.length; j++) {
-          const element_j = element.predictions[j];
-          const user_address = `0x0${element_j.user.address.toString(16)}`;
-          const prediction = `${Number(element_j.prediction.home)}:${Number(
-            element_j.prediction.away
-          )}`;
-          const stake = Number(element_j.prediction.stake);
-          if (stake < 1) {
-            continue;
-          }
-          const goals = ended_matches[i];
-
-          const user_point = calculateScore(goals, prediction);
-
-          if (user_point === 0) {
-            const perc_cal = stake * percentage_cut;
-            reward_pool += stake - perc_cal;
-            accumulated_precentage += perc_cal;
-          } else {
-            const perc_cal = stake * percentage_cut;
-            accumulated_precentage += perc_cal;
-            const contribution = (stake - perc_cal) * user_point;
-            total_contribution += contribution;
-            winners_points.push({
-              user_address,
-              contribution,
-            });
-          }
-        }
-      }
-      const ACCOUNT_ADDRESS = process.env.ACCOUNT_ADDRESS;
-
-      calculated_construct.push({
-        reward: Math.round(accumulated_precentage),
-        user: ACCOUNT_ADDRESS,
       });
 
-      for (let i = 0; i < winners_points.length; i++) {
-        const winner = winners_points[i];
-        if (reward_pool > 0) {
-          calculated_construct.push({
-            reward: Math.round(
-              (winner.contribution / total_contribution) * reward_pool
-            ),
-            user: winner.user_address,
-          });
-        }
-      }
-
-      const registerResult = await new Promise((resolve) =>
-        register_scores(
-          ended_matches,
-          calculated_construct.filter((ft) => Boolean(ft.reward)),
-          (callback) => resolve(callback)
-        )
-      );
-
-      if (!registerResult?.success) {
-        console.error("Failed to register scores, rolling back transaction.");
-        await transaction.rollback();
-        throw new Error("Score registration failed");
-      }
+      return matches.map((match) => ({
+        ...match.toJSON(),
+        details: match.getDetails(match.date > Date.now()),
+      }));
+    } catch (error) {
+      console.error("Error fetching matches by IDs:", error);
+      return [];
     }
-
-    // Commit transaction
-    await transaction.commit();
-    console.log("Transaction committed successfully.");
-    return updated_matches;
-  } catch (error) {
-    console.error("Error in update_past_or_current_matches:", error);
-    await transaction.rollback();
-    throw error;
-  }
-};
-
-const getFutureDays = (numOfDays, start_date) => {
-  const daysArray = [];
-  const today = start_date ? new Date(start_date) : new Date();
-
-  for (let i = 1; i <= numOfDays; i++) {
-    const futureDate = new Date(today);
-    futureDate.setDate(today.getDate() + i); // Add i days to today's date
-    daysArray.push(futureDate.toDateString()); // You can format this as you like
   }
 
-  return daysArray;
-};
-
-exports.set_next_matches = async (transaction, callback, current_round) => {
-  try {
-    const last_match = await Match.findOne({
-      order: [["date", "DESC"]],
-    });
-
-    // Get the current date
-    // const today = new Date();
-
-    // // Create a new Date object for yesterday by subtracting one day (24 hours)
-    // const yesterday = new Date(today);
-    // yesterday.setDate(today.getDate() - 2);
-
-    // console.log("Yesterday's date:", yesterday);
-
-    const futureDays = last_match
-      ? getFutureDays(5, last_match.date)
-      : getFutureDays(5, null);
-    ///REAL
-    const [response1, response2, response3, response4, response5] =
-      await Promise.all([
-        get_api_matches_by_date(futureDays[0]),
-        // get_api_matches_by_date(futureDays[1]),
-        // get_api_matches_by_date(futureDays[2]),
-        // get_api_matches_by_date(futureDays[3]),
-        // get_api_matches_by_date(futureDays[4]),
-      ]);
-
-    /// TEST
-    // const { response1, response2, response3, response4, response5 } =
-    //   dummyMatches;
-
-    /// TEST
-    // const response = {
-    //   data: {
-    //     response: [
-    //       ...(response1.length
-    //         ? groupByUTCHours(
-    //             response1.map((mp, index) => {
-    //               const baseDate = new Date();
-    //               baseDate.setHours(baseDate.getHours() + 1);
-
-    //               // Add extra minutes based on the index
-    //               baseDate.setMinutes(baseDate.getMinutes() + index);
-
-    //               // Format the date to ISO string with time zone
-    //               const formattedDate = baseDate.toISOString();
-
-    //               return {
-    //                 ...mp,
-
-    //                 fixture: {
-    //                   ...mp.fixture,
-    //                   id: Math.floor(1000000 + Math.random() * 9000000),
-    //                   date: formattedDate,
-    //                 },
-    //               };
-    //             })
-    //           )
-    //         : []),
-    //       ...(response2.length
-    //         ? groupByUTCHours(
-    //             response2.map((mp, index) => {
-    //               const baseDate = new Date();
-    //               baseDate.setHours(baseDate.getHours() + 1);
-
-    //               // Add extra minutes based on the index
-    //               baseDate.setMinutes(baseDate.getMinutes() + index);
-
-    //               // Format the date to ISO string with time zone
-    //               const formattedDate = baseDate.toISOString();
-
-    //               return {
-    //                 ...mp,
-    //                 fixture: {
-    //                   ...mp.fixture,
-    //                   id: Math.floor(1000000 + Math.random() * 9000000),
-    //                   date: formattedDate,
-    //                 },
-    //               };
-    //             })
-    //           )
-    //         : []),
-    //       ...(response3.length
-    //         ? groupByUTCHours(
-    //             response3.map((mp, index) => {
-    //               const baseDate = new Date();
-    //               baseDate.setHours(baseDate.getHours() + 1);
-
-    //               // Add extra minutes based on the index
-    //               baseDate.setMinutes(baseDate.getMinutes() + index);
-
-    //               // Format the date to ISO string with time zone
-    //               const formattedDate = baseDate.toISOString();
-
-    //               return {
-    //                 ...mp,
-    //                 fixture: {
-    //                   ...mp.fixture,
-    //                   id: Math.floor(1000000 + Math.random() * 9000000),
-    //                   date: formattedDate,
-    //                 },
-    //               };
-    //             })
-    //           )
-    //         : []),
-    //       ...(response4.length
-    //         ? groupByUTCHours(
-    //             response4.map((mp, index) => {
-    //               const baseDate = new Date();
-    //               baseDate.setHours(baseDate.getHours() + 1);
-
-    //               // Add extra minutes based on the index
-    //               baseDate.setMinutes(baseDate.getMinutes() + index);
-
-    //               // Format the date to ISO string with time zone
-    //               const formattedDate = baseDate.toISOString();
-
-    //               return {
-    //                 ...mp,
-    //                 fixture: {
-    //                   ...mp.fixture,
-    //                   id: Math.floor(1000000 + Math.random() * 9000000),
-    //                   date: formattedDate,
-    //                 },
-    //               };
-    //             })
-    //           )
-    //         : []),
-    //       ...(response5.length
-    //         ? groupByUTCHours(
-    //             response5.map((mp, index) => {
-    //               const baseDate = new Date();
-    //               baseDate.setHours(baseDate.getHours() + 1);
-
-    //               // Add extra minutes based on the index
-    //               baseDate.setMinutes(baseDate.getMinutes() + index);
-
-    //               // Format the date to ISO string with time zone
-    //               const formattedDate = baseDate.toISOString();
-
-    //               return {
-    //                 ...mp,
-    //                 fixture: {
-    //                   ...mp.fixture,
-    //                   id: Math.floor(1000000 + Math.random() * 9000000),
-    //                   date: formattedDate,
-    //                 },
-    //               };
-    //             })
-    //           )
-    //         : []),
-    //     ],
-    //   },
-    // };
-
-    // console.log(response1.data);
-
-    ///REAL
-    const response = {
-      data: {
-        response: [
-          ...(response1.data.schedules?.length
-            ? groupByUTCHours(response1.data.schedules)
-            : []),
-          // ...(response2.data.schedules?.length
-          //   ? groupByUTCHours(response2.data.schedules)
-          //   : []),
-          // ...(response3.data.schedules?.length
-          //   ? groupByUTCHours(response3.data.schedules)
-          //   : []),
-          // ...(response4.data.schedules?.length
-          //   ? groupByUTCHours(response4.data.schedules)
-          //   : []),
-          // ...(response5.data.schedules?.length
-          //   ? groupByUTCHours(response5.data.schedules)
-          //   : []),
-        ],
-      },
-    };
-    // console.log(JSON.stringify(response.data.response));
-    let structure = [];
-
-    if (response.data?.response?.length) {
-      for (let i = 0; i < response.data.response.length; i++) {
-        const element = response.data.response[i];
-        await Match.create(
-          {
-            id: element.fixture.id.toString(),
-            date: element.fixture.date,
-            round: current_round + 1,
-            dateCompare: formatDateFromString(element.fixture.date),
-            details: {
-              fixture: element.fixture,
-              league: element.league,
-              teams: element.teams,
-            },
-          },
-          { transaction }
-        );
-
-        structure.push({
-          inputed: true,
-          id: cairo.felt(element.fixture.id.toString().trim()),
-          timestamp: Math.floor(
-            new Date(element.fixture.date).getTime() / 1000
-          ),
-          round: cairo.uint256(current_round + 1),
-        });
-      }
-    }
-
-    callback({ success: true, msg: "Matches pulled", data: structure });
-  } catch (error) {
-    // await callback({ success: false, msg: error, data: {} });
-    throw error;
-  }
-};
-
-exports.set_scores = async (transaction, callback) => {
-  try {
-    // Calculate the start and end of yesterday
-    const now = new Date();
-    const yesterdayStart = new Date();
-    yesterdayStart.setDate(now.getDate() - 1);
-    yesterdayStart.setHours(0, 0, 0, 0); // Set to the start of the day
-
-    const yesterdayEnd = new Date();
-    yesterdayEnd.setDate(now.getDate() - 1);
-    yesterdayEnd.setHours(23, 59, 59, 999); // Set to the end of the day
-    const matches = await Match.findAll({
-      where: {
-        scored: false,
-        date: {
-          [Op.between]: [yesterdayStart, yesterdayEnd], // Greater than or equal to the start of yesterday
-          // [Op.lte]: endOfYesterday, // Less than or equal to the end of yesterday
-        },
-      },
-    });
-
-    let structure = [];
-
-    if (matches.length) {
-      const response = await get_api_matches_by_date(
-        matches[0].date.toString()
-      );
-      const api_matches = response.data?.response ?? [];
-      for (let i = 0; i < matches.length; i++) {
-        const match = matches[i];
-
-        if (
-          Date.now() / 1000 >=
-          Math.floor(new Date(match.date).getTime() / 1000) + 5400
-        ) {
-          const find = api_matches.find(
-            (fd) =>
-              fd.fixture.id.toString().trim() === match.id.toString().trim()
-          );
-          if (find) {
-            await match.update(
-              {
-                scored: true,
-                details: {
-                  ...match.details,
-                  goals: find.goals,
-                },
-              },
-              { transaction }
-            );
-
-            structure.push({
-              inputed: true,
-              match_id: match.id.toString().trim(),
-              home: Number(find?.goals?.home ?? 0),
-              away: Number(find?.goals?.away ?? 0),
-            });
-          } else {
-            console.log("not found");
-          }
-        } else {
-          console.log("not completed");
-        }
-      }
-    } else {
-      console.log("empty");
-    }
-
-    console.log(structure);
-    await callback({ success: true, msg: "Scored pulled", data: structure });
-  } catch (error) {
-    // await callback({ success: false, msg: error, data: {} });
-    throw error;
-  }
-};
-
-exports.get_matches = async (req, res) => {
-  try {
-    const current_round = await get_current_round();
-    const match = await Match.findOne({
-      order: [["date", "ASC"]],
-
-      where: {
-        scored: false,
-      },
-    });
-    const converted_round = Number(current_round);
-    const { round } = req.query;
-    if (round) {
-      const matches = await Match.findAndCountAll({
+  /**
+   * API endpoint to get current matches
+   * @param {Object} req - Request object
+   * @param {Object} res - Response object
+   */
+  static async getMatches(req, res) {
+    try {
+      const now = Date.now();
+      const matches = await Match.findAll({
         order: [["date", "ASC"]],
-
         where: {
-          round: round,
+          date: {
+            [Op.gte]: now - 2 * 60 * 1000,
+          },
+          scored: false,
+          type: "VIRTUAL",
         },
       });
 
       res.status(200).send({
         success: true,
         message: "Matches Fetched",
-        data: { matches, current_round: round, total_rounds: converted_round },
+        data: {
+          matches: {
+            virtual: matches.map((match) => ({
+              ...match.toJSON(),
+              details: match.getDetails(match.date > now),
+            })),
+            live: [],
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching matches:", error);
+      res.status(500).send({
+        success: false,
+        message: "Internal Server Error",
+        data: {},
+      });
+    }
+  }
+
+  /**
+   * Check and score completed matches
+   * @returns {Array} Newly created matches
+   */
+  static async checkAndScore() {
+    try {
+      const pastTime = Date.now() - 2 * 60 * 1000;
+      const finishedMatches = await Match.findAll({
+        where: {
+          scored: false,
+          date: { [Op.lte]: pastTime },
+        },
       });
 
-      return;
+      let newMatches = [];
+
+      const [currentMatch, lastMatch] = await Promise.all([
+        Match.findOne({
+          where: { scored: false },
+          order: [["round", "ASC"]],
+        }),
+        Match.findOne({
+          order: [["createdAt", "DESC"]],
+        }),
+      ]);
+
+      const diff =
+        Number(lastMatch?.round ?? 0) -
+        Number(currentMatch?.round ?? lastMatch?.round ?? 0);
+      // Generate new matches if needed
+      if (diff < 3) {
+        newMatches = await this.generateAdditionalRounds(
+          lastMatch ?? { date: Date.now() },
+          diff
+        );
+        console.log("INITIALIZED MATCHES");
+      }
+
+      if (finishedMatches.length > 0) {
+        // Process finished matches
+        await this.processFinishedMatches(finishedMatches);
+        console.log("SCORED MATCHES");
+      }
+
+      return { newMatches, fetchLeaderboard: finishedMatches.length > 0 };
+    } catch (error) {
+      console.error("Error in checkAndScore:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate additional rounds of matches
+   * @param {Object} lastMatch - The last match in the database
+   * @param {Number} diff - Difference in rounds
+   * @returns {Array} New matches
+   */
+  static async generateAdditionalRounds(lastMatch, diff) {
+    try {
+      let prepared = [];
+      const currentRound = await get_current_round();
+
+      for (let i = 0; i < 3 - diff; i++) {
+        const startTime = prepared.length
+          ? prepared[prepared.length - 1].date + 2 * 60 * 1000
+          : Number(lastMatch?.date) + 4 * 60 * 1000 < Date.now()
+          ? Date.now() + 4 * 60 * 1000
+          : Number(lastMatch?.date) + 4 * 60 * 1000;
+
+        const round = prepared.length
+          ? prepared[prepared.length - 1].round + 1
+          : Number(currentRound || 0) + 1;
+
+        const newSchedule = GameGenerator.scheduleAllLeagues(
+          VIRTUAL_LEAGUES,
+          startTime,
+          round
+        );
+        prepared.push(...newSchedule);
+      }
+
+      // Register matches with contract
+      await this.registerMatchesWithContract(prepared);
+
+      // Save to database
+      await Match.bulkCreate(prepared);
+
+      return prepared;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Process finished matches and register scores
+   * @param {Array} finishedMatches - Array of finished matches
+   */
+  static async processFinishedMatches(finishedMatches) {
+    const scores = finishedMatches.map((match) => {
+      const matchDetails = match.getDetails(false);
+
+      let winner_odds = [];
+      if (Number(matchDetails.goals.home) > Number(matchDetails.goals.away)) {
+        winner_odds.push(cairo.felt(matchDetails.odds.home.id));
+      } else if (
+        Number(matchDetails.goals.home) < Number(matchDetails.goals.away)
+      ) {
+        winner_odds.push(cairo.felt(matchDetails.odds.away.id));
+      } else {
+        winner_odds.push(cairo.felt(matchDetails.odds.draw.id));
+      }
+      return {
+        match_id: cairo.felt(match.id),
+        inputed: true,
+        home: Number(matchDetails.goals.home),
+        away: Number(matchDetails.goals.away),
+        winner_odds,
+      };
+    });
+
+    console.log("Processing scores:", scores);
+
+    // Register scores and rewards with contracts
+    await register_scores(scores);
+
+    // Remove processed matches
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000; // 1 day ago
+    const matchUpdate = Match.update(
+      { scored: true },
+      {
+        where: {
+          id: {
+            [Op.in]: finishedMatches.map((match) => match.id),
+          },
+        },
+      }
+    );
+    const deleteMatch = Match.destroy({
+      where: {
+        date: {
+          [Op.lte]: oneDayAgo, // Matches 1 day or more old
+        },
+      },
+    });
+
+    await Promise.all([matchUpdate, deleteMatch]);
+    // await Promise.all(
+    //   finishedMatches.map((match) => match.update({ scored: true }))
+    // );
+  }
+
+  /**
+   * Calculate rewards for predictions
+   * @param {Array} matchPredictions - Match predictions from contract
+   * @param {Array} finishedMatches - Finished match objects
+   * @returns {Array} Rewards to be distributed
+   */
+  static calculateRewards(matchPredictions, finishedMatches) {
+    const rewards = [];
+
+    for (const prediction of matchPredictions) {
+      const match = finishedMatches.find(
+        (match) =>
+          cairo.felt(match.id) === cairo.felt(prediction.prediction.match_id)
+      );
+
+      if (!match) continue;
+
+      const predictionId = feltToString(prediction.prediction.id);
+      const stake = formatUnits(prediction.prediction.stake, 18);
+
+      const result = BettingValidator.checkWin(
+        predictionId,
+        match.details.goals,
+        match.details.odds,
+        stake
+      );
+
+      if (result.won && Math.round(result.payout) > 0) {
+        rewards.push({
+          user: BigInt(prediction.user.address.toString()),
+          reward: parseUnits(Math.round(result.payout.toString())),
+          point: result.odd,
+          match_id: match.id,
+        });
+      }
     }
 
-    const matches = await Match.findAndCountAll({
-      order: [["date", "ASC"]],
-
-      where: {
-        round: match?.round ?? converted_round,
-      },
-    });
-
-    res.status(200).send({
-      success: true,
-      message: "Matches Fetched",
-      data: {
-        matches,
-        total_rounds: converted_round,
-        current_round: match?.round ?? converted_round,
-      },
-    });
-  } catch (error) {
-    res
-      .status(500)
-      .send({ success: false, message: "Internal Server Error", data: {} });
-    console.log(error);
+    return rewards;
   }
+
+  static decimalToScaledInt(str, decimals = 2) {
+    const [whole, frac = ""] = str.split(".");
+    const fracPadded = (frac + "0".repeat(decimals)).slice(0, decimals);
+    return BigInt(whole + fracPadded);
+  }
+
+  /**
+   * Initialize matches for a new league
+   * @param {Number} lastRound - Last round number
+   */
+  static async initializeMatches(lastRound = null) {
+    try {
+      if (!lastRound) {
+        const currentRound = await get_current_round();
+        if (Number(currentRound) > 0) {
+          console.log("Matches already initialized");
+          return;
+        }
+      }
+
+      let prepared = [];
+
+      for (let i = 0; i < DEFAULT_MATCH_ROUNDS; i++) {
+        const startTime = prepared.length
+          ? prepared[prepared.length - 1].date + 2 * 60 * 1000
+          : Date.now() + 2 * 60 * 1000;
+
+        const round = prepared.length
+          ? prepared[prepared.length - 1].round + 1
+          : (lastRound ?? i) + 1;
+
+        const newSchedule = GameGenerator.scheduleAllLeagues(
+          VIRTUAL_LEAGUES,
+          startTime,
+          round
+        );
+        prepared.push(...newSchedule);
+      }
+
+      await this.registerMatchesWithContract(prepared);
+      await Match.bulkCreate(prepared);
+    } catch (error) {
+      console.error("Error initializing matches:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Register matches with blockchain contract
+   * @param {Array} matches - Matches to register
+   */
+  static async registerMatchesWithContract(matches) {
+    try {
+      const contractMatches = matches.map((match) => {
+        let odds = [];
+        for (let i = 0; i < Object.keys(match.details.odds).length; i++) {
+          const element = Object.keys(match.details.odds)[i];
+          const odd_details = match.details.odds[element];
+          odds.push({
+            id: cairo.felt(odd_details.id),
+            value: cairo.uint256(
+              this.decimalToScaledInt(
+                Number(odd_details.odd).toFixed(2).toString(),
+                2
+              )
+            ),
+            tag: cairo.felt(odd_details.tag),
+          });
+        }
+        return {
+          id: cairo.felt(match.id),
+          timestamp: Math.floor(match.details.fixture.timestamp / 1000),
+          round: new CairoOption(CairoOptionVariant.Some, match.round),
+          home: {
+            id: cairo.felt(match.details.teams.home.id),
+            goals: new CairoOption(CairoOptionVariant.None),
+          },
+          away: {
+            id: cairo.felt(match.details.teams.away.id),
+            goals: new CairoOption(CairoOptionVariant.None),
+          },
+          match_type: new CairoCustomEnum({ Virtual: {} }),
+          odds,
+        };
+      });
+
+      // Group by round
+      const grouped = Object.values(
+        contractMatches.reduce((acc, obj) => {
+          const roundKey = obj.round.Some || "None";
+          acc[roundKey] = acc[roundKey] || [];
+          acc[roundKey].push(obj);
+          return acc;
+        }, {})
+      );
+
+      //  Register matches by round
+      for (const roundMatches of grouped) {
+        await register_matches(roundMatches);
+      }
+    } catch (error) {
+      throw error;
+    }
+  }
+}
+
+/**
+ * BettingValidator - Validates bets and predictions
+ */
+class BettingValidator {
+  /**
+   * Check if a prediction is a winning bet
+   * @param {String} predictionId - Prediction ID
+   * @param {Object} matchScore - Match score object
+   * @param {Object} odds - Odds object
+   * @param {Number} stake - Bet stake
+   * @returns {Object} Result object with won status and payout
+   */
+  static checkWin(predictionId, matchScore, odds, stake) {
+    const path = findParentPath(odds, predictionId);
+    const currentOdds = flattenObject(odds)[predictionId];
+
+    if (path === null || !currentOdds) {
+      return { won: false, payout: 0 };
+    }
+
+    // Validate the prediction
+    const isWinningBet = this.validatePrediction(path, matchScore);
+
+    return isWinningBet
+      ? { won: true, payout: stake * currentOdds, odd: Number(currentOdds) }
+      : { won: false, payout: 0 };
+  }
+
+  /**
+   * Validate different bet types
+   * @param {String} userPrediction - User's prediction type
+   * @param {Object} matchScore - Match score object
+   * @returns {Boolean} Whether prediction is correct
+   */
+  static validatePrediction(userPrediction, matchScore) {
+    switch (userPrediction) {
+      case "home":
+        return matchScore.home > matchScore.away;
+      case "away":
+        return matchScore.away > matchScore.home;
+      case "draw":
+        return matchScore.home === matchScore.away;
+      default:
+        return false;
+    }
+  }
+}
+
+/**
+ * GameGenerator - Generates virtual games and odds
+ */
+class GameGenerator {
+  /**
+   * Calculate prediction odds
+   * @returns {Object} Odds object
+   */
+  static calculatePredictionOdds() {
+    // Function heavily skewed toward generating values below 2.0
+    const getRandomOdd = (min = MIN_ODD, max = MAX_ODD) => {
+      // Multiple approaches to ensure low values dominate
+      const approach = Math.floor(Math.random() * 5);
+      let value;
+
+      switch (approach) {
+        case 0:
+          // Exponential distribution - heavily weights toward minimum
+          value = min + (max - min) * Math.pow(Math.random(), 4.5);
+          break;
+
+        case 1:
+          // Logistic function centered around 1.7
+          const x = Math.random() * 6 - 3; // Range from -3 to 3
+          const logistic = 1 / (1 + Math.exp(-x));
+          // Scale to be mostly below 2.0
+          value = min + logistic * (2.2 - min);
+          break;
+
+        case 2:
+          // Direct manipulation - 85% chance of below 2.0
+          if (Math.random() < 0.85) {
+            // Generate in range [min, 2.0)
+            value = min + Math.random() * (2.0 - min);
+          } else {
+            // Generate in range [2.0, max)
+            value = 2.0 + Math.random() * (max - 2.0);
+          }
+          break;
+
+        case 3:
+          // Square root transformation skewed toward low values
+          const r = Math.random();
+          // Apply stronger transformation to further bias toward lower values
+          value = min + Math.sqrt(r) * (2.0 - min) * 0.9;
+          break;
+
+        case 4:
+          // Beta-like distribution peaking around 1.3 to 1.8
+          const u = Math.random();
+          const v = Math.random();
+          // Beta(2,5)-like shape - peaks below 2.0 and falls off rapidly
+          const beta = Math.pow(u, 1.5) * Math.pow(1 - v, 4);
+          value = min + beta * (max - min) * 1.5;
+          // Extra clamp for outliers
+          value = Math.min(value, max);
+          break;
+      }
+
+      // Extra safety bias - 25% chance to force below 2.0 if still high
+      if (value >= 2.0 && Math.random() < 0.25) {
+        value = min + Math.random() * (2.0 - min);
+      }
+
+      // Random precision (1 or 2 decimal places)
+      const precision = Math.random() > 0.5 ? 2 : 1;
+      return parseFloat(value.toFixed(precision));
+    };
+
+    // Generate unique IDs
+    const generateId = () => Math.random().toString(36).substring(2, 12);
+
+    // Create odds with significant bias toward low values
+    return {
+      home: {
+        odd: getRandomOdd(),
+        id: generateId(),
+        tag: "1",
+      },
+      away: {
+        odd: getRandomOdd(),
+        id: generateId(),
+        tag: "2",
+      },
+      draw: {
+        odd: getRandomOdd(),
+        id: generateId(),
+        tag: "x",
+      },
+    };
+  }
+
+  /**
+   * Generate game script with odds
+   * @param {Number} duration - Game duration
+   * @param {Object} scores - Game scores
+   * @returns {Object} Game script with events and odds
+   */
+  static generateGameScript(duration = GAME_DURATION, scores) {
+    const script = this.generateBaseGameScript(duration, scores);
+    const odds = this.calculatePredictionOdds();
+
+    return {
+      events: script,
+      odds,
+    };
+  }
+
+  /**
+   * Generate base game script
+   * @param {Number} duration - Game duration
+   * @param {Object} scores - Game scores
+   * @returns {Array} Game events
+   */
+  static generateBaseGameScript(duration = GAME_DURATION, scores) {
+    const script = [];
+    const totalGoals = scores.home + scores.away;
+    const halfTime = duration / 2;
+
+    // Add second half event
+    script.push({
+      time: halfTime,
+      type: "second-half",
+      position: { x: 50, y: 50 },
+    });
+
+    let currentTime = 0;
+    let homeGoalsLeft = scores.home;
+    let awayGoalsLeft = scores.away;
+
+    if (totalGoals > 0) {
+      const approxTimePerGoal = duration / (totalGoals + 1);
+
+      while (homeGoalsLeft > 0 || awayGoalsLeft > 0) {
+        const homeTeamAttacks =
+          Math.random() < homeGoalsLeft / (homeGoalsLeft + awayGoalsLeft);
+        const isLastScore = homeGoalsLeft + awayGoalsLeft === 1;
+
+        // If approaching half time, delay to after half time
+        if (currentTime < halfTime && currentTime + 15 > halfTime) {
+          currentTime = halfTime + 5;
+        }
+
+        const sequence = this.createSequence(
+          currentTime,
+          homeTeamAttacks,
+          true,
+          duration,
+          isLastScore
+        );
+
+        script.push(...sequence.events);
+
+        if (homeTeamAttacks) homeGoalsLeft--;
+        else awayGoalsLeft--;
+
+        currentTime = sequence.endTime + Math.min(5, approxTimePerGoal * 0.2);
+      }
+    }
+
+    // Fill in remaining time with non-scoring moves
+    while (currentTime < duration) {
+      const isHome = Math.random() < 0.5;
+      const remainingTime = duration - currentTime;
+
+      // If approaching half time, delay to after half time
+      if (currentTime < halfTime && currentTime + 10 > halfTime) {
+        currentTime = halfTime + 5;
+        continue;
+      }
+
+      if (remainingTime < 3) {
+        script.push({
+          time: currentTime,
+          type: "move",
+          position: { x: 45 + Math.random() * 10, y: 45 + Math.random() * 10 },
+        });
+        break;
+      }
+
+      const sequence = this.createSequence(
+        currentTime,
+        isHome,
+        false,
+        duration,
+        false
+      );
+      script.push(...sequence.events);
+      currentTime = sequence.endTime + Math.min(2, remainingTime * 0.1);
+    }
+
+    return script
+      .filter((event) => event.time <= duration)
+      .sort((a, b) => a.time - b.time);
+  }
+
+  /**
+   * Create a sequence of game events
+   * @param {Number} startTime - Start time of sequence
+   * @param {Boolean} isHome - Whether home team is attacking
+   * @param {Boolean} shouldScore - Whether sequence should end with goal
+   * @param {Number} maxDuration - Maximum duration of game
+   * @param {Boolean} isLastScoring - Whether this is the last scoring sequence
+   * @returns {Object} Events and end time
+   */
+  static createSequence(
+    startTime,
+    isHome,
+    shouldScore,
+    maxDuration,
+    isLastScoring
+  ) {
+    const events = [];
+    let currentTime = startTime;
+
+    const startX = 30 + Math.random() * 40;
+    const startY = 20 + Math.random() * 60;
+    const remainingTime = maxDuration - currentTime;
+
+    const minMovements = shouldScore ? 2 : 3;
+    const maxMovements = shouldScore
+      ? Math.min(5, Math.floor(remainingTime / 2))
+      : Math.min(8, Math.floor(remainingTime / 3));
+
+    const movementCount = Math.max(
+      minMovements,
+      Math.min(3 + Math.floor(Math.random() * 3), maxMovements)
+    );
+
+    let timePerMove;
+    if (shouldScore) {
+      const requiredTime = isLastScoring
+        ? remainingTime
+        : Math.min(remainingTime, 15);
+      timePerMove = Math.max(1, requiredTime / (movementCount + 2));
+    } else {
+      timePerMove = Math.max(1, remainingTime / (movementCount + 1));
+    }
+
+    events.push({
+      time: currentTime,
+      type: "move",
+      position: { x: startX, y: startY },
+    });
+
+    for (let i = 1; i < movementCount; i++) {
+      currentTime += timePerMove;
+      if (currentTime >= maxDuration) break;
+
+      let targetX, targetY;
+
+      if (shouldScore) {
+        const progressRatio = i / movementCount;
+        targetX = isHome
+          ? startX + (95 - startX) * progressRatio
+          : startX - (startX - 5) * progressRatio;
+        targetY = 40 + Math.random() * 20;
+      } else {
+        const previousX = events[events.length - 1].position.x;
+        const previousY = events[events.length - 1].position.y;
+
+        const moveType = Math.random();
+        if (moveType < 0.4) {
+          targetX = Math.max(
+            5,
+            Math.min(95, previousX + (Math.random() - 0.5) * 30)
+          );
+          targetY = previousY + (Math.random() - 0.5) * 10;
+        } else {
+          targetX = Math.max(5, Math.min(95, 20 + Math.random() * 60));
+          targetY = Math.max(5, Math.min(95, 20 + Math.random() * 60));
+        }
+      }
+
+      events.push({
+        time: currentTime,
+        type: "move",
+        position: { x: targetX, y: targetY },
+      });
+    }
+
+    if (shouldScore && currentTime + timePerMove <= maxDuration) {
+      currentTime += timePerMove;
+      events.push({
+        time: currentTime,
+        type: "goal",
+        position: { x: isHome ? 95 : 5, y: 50 },
+        team: isHome ? "home" : "away",
+      });
+
+      if (currentTime + timePerMove <= maxDuration) {
+        currentTime += timePerMove;
+        events.push({
+          time: currentTime,
+          type: "move",
+          position: { x: 50, y: 50 },
+        });
+      }
+    }
+
+    return { events, endTime: currentTime };
+  }
+
+  /**
+   * Shuffle teams for matchmaking
+   * @param {Array} teams - Teams array
+   * @returns {Array} Shuffled teams
+   */
+  static shuffleTeams(teams) {
+    const shuffledTeams = [...teams];
+    for (let i = shuffledTeams.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffledTeams[i], shuffledTeams[j]] = [
+        shuffledTeams[j],
+        shuffledTeams[i],
+      ];
+    }
+    return shuffledTeams;
+  }
+
+  /**
+   * Generate league matches
+   * @param {Object} league - League object
+   * @param {Number} round - Round number
+   * @param {Number} startTime - Start time
+   * @returns {Array} Generated matches
+   */
+  static generateLeagueMatches(league, round, startTime) {
+    const shuffledTeams = this.shuffleTeams(league.teams);
+    const matches = [];
+
+    // Ensure even number of teams
+    const teamsToPair =
+      shuffledTeams.length % 2 === 0
+        ? shuffledTeams
+        : shuffledTeams.slice(0, -1);
+
+    for (let i = 0; i < teamsToPair.length; i += 2) {
+      const fixtureDate = new Date(startTime);
+
+      const matchId = Math.random().toString(36).substring(2, 12);
+      const targetScore = {
+        home: Math.floor(Math.random() * 7),
+        away: Math.floor(Math.random() * 7),
+      };
+      const script = this.generateGameScript(GAME_DURATION, targetScore);
+
+      matches.push({
+        details: {
+          fixture: {
+            id: matchId,
+            date: fixtureDate.getTime(),
+            timestamp: fixtureDate.getTime(),
+          },
+          ...script,
+          league: { ...league, teams: undefined },
+          teams: {
+            home: teamsToPair[i],
+            away: teamsToPair[i + 1],
+          },
+          goals: targetScore,
+        },
+        type: "VIRTUAL",
+        date: fixtureDate.getTime(),
+        round,
+        id: matchId,
+      });
+    }
+    return matches;
+  }
+
+  /**
+   * Schedule all leagues
+   * @param {Array} leagues - Leagues array
+   * @param {Number} now - Current timestamp
+   * @param {Number} round - Round number
+   * @returns {Array} All matches
+   */
+  static scheduleAllLeagues(leagues, now = Date.now(), round) {
+    const allMatches = [];
+    leagues.forEach((league, index) => {
+      const leagueStartTime = now + index * MINUTES_BETWEEN_LEAGUES * 60 * 1000;
+      const leagueMatches = this.generateLeagueMatches(
+        league,
+        round,
+        leagueStartTime
+      );
+      allMatches.push(...leagueMatches);
+    });
+
+    return allMatches;
+  }
+}
+
+// Export public methods for API routes
+module.exports = {
+  getMatchesEventsByIds: MatchService.getMatchesEventsByIds.bind(MatchService),
+  getMatches: MatchService.getMatches.bind(MatchService),
+  checkAndScore: MatchService.checkAndScore.bind(MatchService),
+  initializeMatches: MatchService.initializeMatches.bind(MatchService),
 };

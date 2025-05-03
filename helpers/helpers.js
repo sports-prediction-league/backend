@@ -54,3 +54,58 @@ exports.feltToString = (felt) =>
     .map((c) => String.fromCharCode(parseInt(c, 16)))
     // Join to a string
     .join("");
+
+exports.parseUnits = (value, decimals = 18) => {
+  const [integerPart, fractionalPart = ""] = value.split(".");
+
+  // Pad fractional part to the right with zeros up to `decimals`
+  const paddedFraction = fractionalPart
+    .padEnd(decimals, "0")
+    .slice(0, decimals);
+
+  // Combine integer and fractional parts and convert to BigInt
+  return BigInt(integerPart + paddedFraction);
+};
+
+exports.flattenObject = (obj, result = {}) => {
+  for (const key in obj) {
+    if (typeof obj[key] === "object" && obj[key] !== null) {
+      flattenObject(obj[key], result); // Recursively flatten
+    } else if (key === "id" && obj[key]) {
+      result[obj[key]] = obj.odd; // Store `odd` with `id` as the key
+    }
+  }
+  return result;
+};
+
+exports.findParentPath = (obj, targetId, path = "") => {
+  for (const key in obj) {
+    if (typeof obj[key] === "object" && obj[key] !== null) {
+      // Build the current path
+      const newPath = path ? `${path}/${key}` : key;
+
+      // If the object has an id and it matches the target id, return the path
+      if (obj[key].id === targetId) {
+        return newPath;
+      }
+
+      // Recursively search deeper
+      const found = findParentPath(obj[key], targetId, newPath);
+      if (found) return found;
+    }
+  }
+  return null; // Return null if not found
+};
+
+exports.formatUnits = (value, decimals = 18) => {
+  const bigValue = BigInt(value); // Convert to BigInt for precision
+  const divisor = BigInt(10 ** decimals); // 10^decimals
+  const integerPart = bigValue / divisor;
+  const fractionalPart = bigValue % divisor;
+
+  // Pad fractional part with leading zeros
+  const fractionalString = fractionalPart.toString().padStart(decimals, "0");
+
+  // Remove trailing zeros and return
+  return `${integerPart}.${fractionalString}`.replace(/\.?0+$/, "");
+};

@@ -10,11 +10,15 @@ module.exports = {
         primaryKey: true,
       },
       date: {
-        type: DataTypes.DATE,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
       round: {
         type: DataTypes.INTEGER,
+        allowNull: false,
+      },
+      type: {
+        type: DataTypes.ENUM("LIVE", "VIRTUAL"),
         allowNull: false,
       },
       scored: {
