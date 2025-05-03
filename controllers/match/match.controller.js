@@ -66,48 +66,18 @@ class MatchService {
    */
   static async getMatches(req, res) {
     try {
-      const [currentMatch, lastMatch] = await Promise.all([
-        Match.findOne({
-          where: {
-            scored: false,
-            date: {
-              [Op.or]: [
-                { [Op.lte]: Date.now() },
-                { [Op.gte]: Date.now() + 2 * 60 * 1000 },
-              ],
-            },
-          },
-          order: [["round", "ASC"]],
-        }),
-        Match.findOne({
-          order: [["round", "DESC"]],
-        }),
-      ]);
-
-      if (!currentMatch) {
-        return res.status(200).send({
-          success: true,
-          message: "Matches fetched",
-          data: {
-            matches: { virtual: [], live: [] },
-            total_rounds: lastMatch?.round ?? 0,
-            current_round: lastMatch?.round ?? 0,
-          },
-        });
-      }
-
+      const now = Date.now();
       const matches = await Match.findAll({
         order: [["date", "ASC"]],
         where: {
-          round: {
-            [Op.gte]: currentMatch.round,
-            [Op.lt]: currentMatch.round + 3,
+          date: {
+            [Op.gte]: now - 2 * 60 * 1000,
           },
+          scored: false,
           type: "VIRTUAL",
         },
       });
 
-      const now = Date.now();
       res.status(200).send({
         success: true,
         message: "Matches Fetched",
@@ -119,8 +89,6 @@ class MatchService {
             })),
             live: [],
           },
-          total_rounds: lastMatch.round,
-          current_round: currentMatch.round,
         },
       });
     } catch (error) {
@@ -149,39 +117,35 @@ class MatchService {
 
       let newMatches = [];
 
-      if (finishedMatches.length) {
-        const [currentMatch, lastMatch] = await Promise.all([
-          Match.findOne({
-            where: { scored: false },
-            order: [["round", "ASC"]],
-          }),
-          Match.findOne({
-            order: [["round", "DESC"]],
-          }),
-        ]);
+      const [currentMatch, lastMatch] = await Promise.all([
+        Match.findOne({
+          where: { scored: false },
+          order: [["round", "ASC"]],
+        }),
+        Match.findOne({
+          order: [["createdAt", "DESC"]],
+        }),
+      ]);
 
-        const diff = Number(lastMatch.round) - Number(currentMatch.round);
-
-        // Generate new matches if needed
-        if (diff < 3) {
-          newMatches = await this.generateAdditionalRounds(lastMatch, diff);
-        }
-
-        // Process finished matches
-        await this.processFinishedMatches(finishedMatches);
-      } else {
-        const lastMatch = await Match.findOne({
-          order: [["round", "DESC"]],
-        });
-
-        if (!lastMatch) {
-          const lastRound = await get_current_round();
-          await this.initializeMatches(Number(lastRound));
-          console.log("INITIALIZED MATCHES");
-        }
+      const diff =
+        Number(lastMatch?.round ?? 0) -
+        Number(currentMatch?.round ?? lastMatch?.round ?? 0);
+      // Generate new matches if needed
+      if (diff < 3) {
+        newMatches = await this.generateAdditionalRounds(
+          lastMatch ?? { date: Date.now() },
+          diff
+        );
+        console.log("INITIALIZED MATCHES");
       }
 
-      return newMatches;
+      if (finishedMatches.length > 0) {
+        // Process finished matches
+        await this.processFinishedMatches(finishedMatches);
+        console.log("SCORED MATCHES");
+      }
+
+      return { newMatches, fetchLeaderboard: finishedMatches.length > 0 };
     } catch (error) {
       console.error("Error in checkAndScore:", error);
       throw error;
@@ -195,33 +159,39 @@ class MatchService {
    * @returns {Array} New matches
    */
   static async generateAdditionalRounds(lastMatch, diff) {
-    let prepared = [];
-    const currentRound = await get_current_round();
+    try {
+      let prepared = [];
+      const currentRound = await get_current_round();
 
-    for (let i = 0; i < 3 - diff; i++) {
-      const startTime = prepared.length
-        ? prepared[prepared.length - 1].date + 2 * 60 * 1000
-        : Number(lastMatch?.date) + 4 * 60 * 1000;
+      for (let i = 0; i < 3 - diff; i++) {
+        const startTime = prepared.length
+          ? prepared[prepared.length - 1].date + 2 * 60 * 1000
+          : Number(lastMatch?.date) + 4 * 60 * 1000 < Date.now()
+          ? Date.now() + 4 * 60 * 1000
+          : Number(lastMatch?.date) + 4 * 60 * 1000;
 
-      const round = prepared.length
-        ? prepared[prepared.length - 1].round + 1
-        : Number(currentRound || 0) + 1;
+        const round = prepared.length
+          ? prepared[prepared.length - 1].round + 1
+          : Number(currentRound || 0) + 1;
 
-      const newSchedule = GameGenerator.scheduleAllLeagues(
-        VIRTUAL_LEAGUES,
-        startTime,
-        round
-      );
-      prepared.push(...newSchedule);
+        const newSchedule = GameGenerator.scheduleAllLeagues(
+          VIRTUAL_LEAGUES,
+          startTime,
+          round
+        );
+        prepared.push(...newSchedule);
+      }
+
+      // Register matches with contract
+      await this.registerMatchesWithContract(prepared);
+
+      // Save to database
+      await Match.bulkCreate(prepared);
+
+      return prepared;
+    } catch (error) {
+      throw error;
     }
-
-    // Register matches with contract
-    await this.registerMatchesWithContract(prepared);
-
-    // Save to database
-    await Match.bulkCreate(prepared);
-
-    return prepared;
   }
 
   /**
@@ -232,35 +202,54 @@ class MatchService {
     const scores = finishedMatches.map((match) => {
       const matchDetails = match.getDetails(false);
 
-      let winner_odd;
+      let winner_odds = [];
       if (Number(matchDetails.goals.home) > Number(matchDetails.goals.away)) {
-        winner_odd = matchDetails.odds.home.id;
+        winner_odds.push(cairo.felt(matchDetails.odds.home.id));
       } else if (
         Number(matchDetails.goals.home) < Number(matchDetails.goals.away)
       ) {
-        winner_odd = matchDetails.odds.away.id;
+        winner_odds.push(cairo.felt(matchDetails.odds.away.id));
       } else {
-        winner_odd = matchDetails.odds.draw.id;
+        winner_odds.push(cairo.felt(matchDetails.odds.draw.id));
       }
       return {
         match_id: cairo.felt(match.id),
         inputed: true,
-        winner_odd: cairo.felt(winner_odd),
+        home: Number(matchDetails.goals.home),
+        away: Number(matchDetails.goals.away),
+        winner_odds,
       };
     });
 
     console.log("Processing scores:", scores);
 
-    // const matchIds = finishedMatches.map((match) => cairo.felt(match.id));
-    // const matchPredictions = await get_matches_predictions(matchIds);
-
-    // const rewards = this.calculateRewards(matchPredictions, finishedMatches);
-
     // Register scores and rewards with contracts
     await register_scores(scores);
 
     // Remove processed matches
-    await Promise.all(finishedMatches.map((match) => match.destroy()));
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000; // 1 day ago
+    const matchUpdate = Match.update(
+      { scored: true },
+      {
+        where: {
+          id: {
+            [Op.in]: finishedMatches.map((match) => match.id),
+          },
+        },
+      }
+    );
+    const deleteMatch = Match.destroy({
+      where: {
+        date: {
+          [Op.lte]: oneDayAgo, // Matches 1 day or more old
+        },
+      },
+    });
+
+    await Promise.all([matchUpdate, deleteMatch]);
+    // await Promise.all(
+    //   finishedMatches.map((match) => match.update({ scored: true }))
+    // );
   }
 
   /**
@@ -355,50 +344,56 @@ class MatchService {
    * @param {Array} matches - Matches to register
    */
   static async registerMatchesWithContract(matches) {
-    const contractMatches = matches.map((match) => {
-      let odds = [];
-      for (let i = 0; i < Object.keys(match.details.odds).length; i++) {
-        const element = Object.keys(match.details.odds)[i];
-        const odd_details = match.details.odds[element];
-        odds.push({
-          id: cairo.felt(odd_details.id),
-          value: cairo.uint256(
-            this.decimalToScaledInt(
-              Number(odd_details.odd).toFixed(2).toString(),
-              2
-            )
-          ),
-        });
+    try {
+      const contractMatches = matches.map((match) => {
+        let odds = [];
+        for (let i = 0; i < Object.keys(match.details.odds).length; i++) {
+          const element = Object.keys(match.details.odds)[i];
+          const odd_details = match.details.odds[element];
+          odds.push({
+            id: cairo.felt(odd_details.id),
+            value: cairo.uint256(
+              this.decimalToScaledInt(
+                Number(odd_details.odd).toFixed(2).toString(),
+                2
+              )
+            ),
+            tag: cairo.felt(odd_details.tag),
+          });
+        }
+        return {
+          id: cairo.felt(match.id),
+          timestamp: Math.floor(match.details.fixture.timestamp / 1000),
+          round: new CairoOption(CairoOptionVariant.Some, match.round),
+          home: {
+            id: cairo.felt(match.details.teams.home.id),
+            goals: new CairoOption(CairoOptionVariant.None),
+          },
+          away: {
+            id: cairo.felt(match.details.teams.away.id),
+            goals: new CairoOption(CairoOptionVariant.None),
+          },
+          match_type: new CairoCustomEnum({ Virtual: {} }),
+          odds,
+        };
+      });
+
+      // Group by round
+      const grouped = Object.values(
+        contractMatches.reduce((acc, obj) => {
+          const roundKey = obj.round.Some || "None";
+          acc[roundKey] = acc[roundKey] || [];
+          acc[roundKey].push(obj);
+          return acc;
+        }, {})
+      );
+
+      //  Register matches by round
+      for (const roundMatches of grouped) {
+        await register_matches(roundMatches);
       }
-      return {
-        id: cairo.felt(match.id),
-        timestamp: Math.floor(match.details.fixture.timestamp / 1000),
-        round: new CairoOption(CairoOptionVariant.Some, match.round),
-        match_type: new CairoCustomEnum({ Virtual: {} }),
-        odds,
-      };
-    });
-    // console.log(
-    //   JSON.stringify(contractMatches, null, 2),
-    //   "matches here ======>>>>"
-    // );
-
-    // console.log(contractMatches.map((mp) => mp.odds));
-    // return;
-
-    // Group by round
-    const grouped = Object.values(
-      contractMatches.reduce((acc, obj) => {
-        const roundKey = obj.round.Some || "None";
-        acc[roundKey] = acc[roundKey] || [];
-        acc[roundKey].push(obj);
-        return acc;
-      }, {})
-    );
-
-    // Register matches by round
-    for (const roundMatches of grouped) {
-      await register_matches(roundMatches);
+    } catch (error) {
+      throw error;
     }
   }
 }
@@ -460,22 +455,85 @@ class GameGenerator {
    * @returns {Object} Odds object
    */
   static calculatePredictionOdds() {
+    // Function heavily skewed toward generating values below 2.0
     const getRandomOdd = (min = MIN_ODD, max = MAX_ODD) => {
-      return parseFloat((min + Math.random() * (max - min)).toFixed(1));
+      // Multiple approaches to ensure low values dominate
+      const approach = Math.floor(Math.random() * 5);
+      let value;
+
+      switch (approach) {
+        case 0:
+          // Exponential distribution - heavily weights toward minimum
+          value = min + (max - min) * Math.pow(Math.random(), 4.5);
+          break;
+
+        case 1:
+          // Logistic function centered around 1.7
+          const x = Math.random() * 6 - 3; // Range from -3 to 3
+          const logistic = 1 / (1 + Math.exp(-x));
+          // Scale to be mostly below 2.0
+          value = min + logistic * (2.2 - min);
+          break;
+
+        case 2:
+          // Direct manipulation - 85% chance of below 2.0
+          if (Math.random() < 0.85) {
+            // Generate in range [min, 2.0)
+            value = min + Math.random() * (2.0 - min);
+          } else {
+            // Generate in range [2.0, max)
+            value = 2.0 + Math.random() * (max - 2.0);
+          }
+          break;
+
+        case 3:
+          // Square root transformation skewed toward low values
+          const r = Math.random();
+          // Apply stronger transformation to further bias toward lower values
+          value = min + Math.sqrt(r) * (2.0 - min) * 0.9;
+          break;
+
+        case 4:
+          // Beta-like distribution peaking around 1.3 to 1.8
+          const u = Math.random();
+          const v = Math.random();
+          // Beta(2,5)-like shape - peaks below 2.0 and falls off rapidly
+          const beta = Math.pow(u, 1.5) * Math.pow(1 - v, 4);
+          value = min + beta * (max - min) * 1.5;
+          // Extra clamp for outliers
+          value = Math.min(value, max);
+          break;
+      }
+
+      // Extra safety bias - 25% chance to force below 2.0 if still high
+      if (value >= 2.0 && Math.random() < 0.25) {
+        value = min + Math.random() * (2.0 - min);
+      }
+
+      // Random precision (1 or 2 decimal places)
+      const precision = Math.random() > 0.5 ? 2 : 1;
+      return parseFloat(value.toFixed(precision));
     };
 
+    // Generate unique IDs
+    const generateId = () => Math.random().toString(36).substring(2, 12);
+
+    // Create odds with significant bias toward low values
     return {
       home: {
         odd: getRandomOdd(),
-        id: Math.random().toString(36).substring(2, 12),
+        id: generateId(),
+        tag: "1",
       },
       away: {
         odd: getRandomOdd(),
-        id: Math.random().toString(36).substring(2, 12),
+        id: generateId(),
+        tag: "2",
       },
       draw: {
         odd: getRandomOdd(),
-        id: Math.random().toString(36).substring(2, 12),
+        id: generateId(),
+        tag: "x",
       },
     };
   }
@@ -727,6 +785,7 @@ class GameGenerator {
 
     for (let i = 0; i < teamsToPair.length; i += 2) {
       const fixtureDate = new Date(startTime);
+
       const matchId = Math.random().toString(36).substring(2, 12);
       const targetScore = {
         home: Math.floor(Math.random() * 7),

@@ -1,226 +1,166 @@
+// Load environment variables
 require("dotenv").config(
-  process.env.NODE_ENV === "development"
-    ? {
-        path: "./dev.env",
-      }
-    : undefined
+  process.env.NODE_ENV === "development" ? { path: "./dev.env" } : undefined
 );
-const express = require("express");
-const TelegramBot = require("node-telegram-bot-api");
-const { sequelize } = require("./models");
-const cors = require("cors");
-const http = require("http");
-const morgan = require("morgan");
 
+// Core imports
+const express = require("express");
+const http = require("http");
+const cors = require("cors");
+const morgan = require("morgan");
+const { sequelize } = require("./models");
+
+// Import controllers
 const {
   getMatches,
   checkAndScore,
   initializeMatches,
 } = require("./controllers/match/match.controller");
-const { feltToString } = require("./helpers/helpers");
-const ServerSocket = require("./socket/socket");
 const {
-  get_user_points,
-  get_first_position,
   execute_contract_call,
-  deploy_account,
 } = require("./controllers/contract/contract.controller");
 
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const SERVER_URL = process.env.SERVER_URL;
+// Import custom socket handler
+const ServerSocket = require("./socket/socket");
 
+// Create Express app
 const app = express();
 
+// Configure middleware
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(morgan("common"));
 
-// Extend the TelegramBot class to customize behavior
-// class CustomTelegramBot extends TelegramBot {
-//   // Override the request method
-//   _request(path, options = {}) {
-//     // Modify the API URL to append /test to the path
-//     const testPath = `test/${path}`;
-//     return super._request(testPath, options);
-//   }
-// }
-
-// const bot =
-//   process.env.NODE_ENV === "production"
-// ? new TelegramBot(BOT_TOKEN, {
-//     webhook: true,
-//   })
-//     : new CustomTelegramBot(BOT_TOKEN, {
-//         webHook: true,
-//       });
-
-const bot = new TelegramBot(BOT_TOKEN, {
-  webhook: true,
+// API Routes
+app.get("/", (_, res) => {
+  res.status(200).send("Server running successfully");
 });
-bot.setWebHook(`${SERVER_URL}/bot${BOT_TOKEN}`);
 
+app.get("/matches", getMatches);
+
+// Contract execution endpoint
 app.post("/execute", async (req, res) => {
   try {
     const tx = await execute_contract_call(req.body);
     res.status(200).send(tx);
   } catch (error) {
-    res
-      .status(500)
-      .send({ success: false, message: "Internal server error", data: {} });
+    console.error("Execute contract error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      data: {},
+    });
   }
 });
 
-app.post("/deploy-account", async (req, res) => {
-  try {
-    const { account_payload, user_id } = req.body;
-    if (!account_payload || !user_id) {
-      res
-        .status(400)
-        .send({ success: false, message: "Invalid payload", data: {} });
-      return;
-    }
-    const user = await get_user_by_id(user_id);
-    if (!user) {
-      res
-        .status(400)
-        .send({ success: false, message: "Invalid user", data: {} });
-      return;
-    }
-    const tx = await deploy_account(req.body.account_payload);
-    res.status(200).send(tx);
-  } catch (error) {
-    res
-      .status(500)
-      .send({ success: false, message: "Internal server error", data: {} });
-  }
-});
+// Create HTTP server
+const server = http.createServer(app);
 
-bot.on("message", async (_) => {});
-
-bot.onText(/\/top/, async (msg) => {
-  try {
-    const response = await get_first_position(msg.from.id.toString());
-    if (response?.Some) {
-      const user = feltToString(response.Some.user);
-      const score = Number(response.Some.total_score);
-      bot.sendMessage(
-        msg.chat.id,
-        `${user} is leading with a total points of ${score}`
-      );
-    } else {
-      bot.sendMessage(msg.chat.id, "NO LEADERBOARD YET");
-    }
-  } catch (error) {
-    console.log(error);
-    bot.sendMessage(msg.chat.id, "AN ERROR OCCURED. PLS TRY AGAIN");
-  }
-});
-bot.onText(/\/my_points/, async (msg) => {
-  try {
-    const value = await get_user_points(msg.from.id.toString());
-    bot.sendMessage(
-      msg.chat.id,
-      `You have a total of ${Number(value)} points.`
-    );
-  } catch (error) {
-    bot.sendMessage(msg.chat.id, "AN ERROR OCCURED. PLS TRY AGAIN");
-  }
-});
-
-app.post(`/bot${BOT_TOKEN}`, (req, res) => {
-  bot.processUpdate(req.body);
-  res.sendStatus(200);
-});
-
-bot.on("polling_error", (error) => {
-  console.log("Polling error:", error); // Log polling errors
-});
-
-bot.on("webhook_error", (error) => {
-  console.log("Webhook error:", error); // Log webhook errors
-});
-
-app.get("/", (_, res) => {
-  res.status(200).send("server running successfully");
-});
-
-app.get("/matches", getMatches);
-
-const server = http.createServer(app, {
-  cors: {
-    origin: "*",
-  },
-});
-
+// Initialize socket server
 const socket = new ServerSocket(server);
 
+// Periodic task management
 let isRunning = false;
 
-const task = async () => {
-  if (process.env.pause === "YES") {
-    console.log("PAUSED");
+/**
+ * Periodic task to check and score matches
+ */
+const matchCheckTask = async () => {
+  // Skip if paused
+  if (process.env.PAUSE_TASKS === "YES") {
+    console.log("Tasks paused by environment variable");
     return;
   }
+
+  // Skip if already running
   if (isRunning) {
-    console.log("Previous task still running, skipping this iteration.");
+    console.log("Previous task still running, skipping this iteration");
     return;
   }
+
   isRunning = true;
-  console.log("Task started at:", new Date().toISOString());
+  console.log(`Task started at: ${new Date().toISOString()}`);
 
   try {
-    const new_matches = await checkAndScore();
-    // console.log(
-    //   new_matches.map((mp) => mp.date),
-    //   new_matches.length
-    // );
-    if (new_matches.length) {
-      socket.io.emit("new-matches", new_matches);
+    const result = await checkAndScore();
+
+    if (result.newMatches.length > 0 || result.fetchLeaderboard) {
+      console.log(`Emitting ${result.newMatches.length} new matches`);
+      socket.io.emit("new-matches", result);
     }
+    isRunning = false;
   } catch (error) {
-    console.error("Error during task execution:", error);
+    console.error("Error during match check task:", error);
+    isRunning = false;
   } finally {
     isRunning = false;
-    console.log("Task completed at:", new Date().toISOString());
+    console.log(`Task completed at: ${new Date().toISOString()}`);
   }
 };
 
-(async function () {
+/**
+ * Initialize server
+ */
+const initializeServer = async () => {
   try {
-    if (process.env.pause === "YES") {
-      console.log("PAUSED");
+    // Skip initialization if paused
+    if (process.env.PAUSE_TASKS === "YES") {
+      console.log("Server initialization paused by environment variable");
       return;
     }
+
+    console.log("Initializing matches...");
     await initializeMatches();
-    // await checkAndScore();
+    console.log("Matches initialized successfully");
   } catch (error) {
-    console.log(error);
+    console.error("Failed to initialize matches:", error);
   }
-})();
+};
 
-// Run the task every 10 minutes
-const interval = 1 * 60 * 1000; // 2 minutes in milliseconds
-const job = setInterval(task, interval);
-
-// Graceful Shutdown
+/**
+ * Graceful shutdown handler
+ */
 const cleanup = async () => {
-  console.log("Cleaning up resources...");
-  // await redisClient.del("cron-job-isRunning");
-  clearInterval(job);
+  console.log("Shutting down server gracefully...");
+
+  // Clear running task interval
+  clearInterval(taskInterval);
+
+  // Close database connection
   await sequelize.close();
+  console.log("Database connection closed");
+
+  // Close socket connection
   socket.io.close();
+  console.log("Socket connections closed");
+
+  // Exit process
   process.exit(0);
 };
 
-process.on("SIGINT", cleanup);
+// Set up task interval (configurable via env var)
+const taskIntervalTime = parseInt(process.env.TASK_INTERVAL_MS) || 60000; // Default 1 minute
+const taskInterval = setInterval(matchCheckTask, taskIntervalTime);
 
+// Register cleanup handlers
+process.on("SIGINT", cleanup);
 process.on("SIGTERM", cleanup);
 
-// const server = app;
+// Start server
 const PORT = process.env.PORT || 8000;
 server.listen(PORT, async () => {
-  await sequelize.authenticate();
-  console.log("Connected to database");
-  console.log("server running on port ", PORT);
+  try {
+    // Connect to database
+    await sequelize.authenticate();
+    console.log("Connected to database successfully");
+
+    // Initialize server components
+    await initializeServer();
+
+    console.log(`Server running on port ${PORT}`);
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    await cleanup();
+  }
 });
