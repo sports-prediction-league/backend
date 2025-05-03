@@ -83,11 +83,11 @@ const matchCheckTask = async () => {
   console.log(`Task started at: ${new Date().toISOString()}`);
 
   try {
-    const newMatches = await checkAndScore();
+    const result = await checkAndScore();
 
-    if (newMatches.length) {
-      console.log(`Emitting ${newMatches.length} new matches`);
-      socket.io.emit("new-matches", newMatches);
+    if (result.newMatches.length > 0 || result.fetchLeaderboard) {
+      console.log(`Emitting ${result.newMatches.length} new matches`);
+      socket.io.emit("new-matches", result);
     }
     isRunning = false;
   } catch (error) {

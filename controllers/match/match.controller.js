@@ -128,21 +128,24 @@ class MatchService {
       ]);
 
       const diff =
-        Number(lastMatch.round) -
-        Number(currentMatch?.round ?? lastMatch.round);
+        Number(lastMatch?.round ?? 0) -
+        Number(currentMatch?.round ?? lastMatch?.round ?? 0);
       // Generate new matches if needed
       if (diff < 3) {
-        newMatches = await this.generateAdditionalRounds(lastMatch, diff);
+        newMatches = await this.generateAdditionalRounds(
+          lastMatch ?? { date: Date.now() },
+          diff
+        );
         console.log("INITIALIZED MATCHES");
       }
 
-      if (finishedMatches.length) {
+      if (finishedMatches.length > 0) {
         // Process finished matches
         await this.processFinishedMatches(finishedMatches);
         console.log("SCORED MATCHES");
       }
 
-      return newMatches;
+      return { newMatches, fetchLeaderboard: finishedMatches.length > 0 };
     } catch (error) {
       console.error("Error in checkAndScore:", error);
       throw error;
@@ -355,24 +358,21 @@ class MatchService {
                 2
               )
             ),
+            tag: cairo.felt(odd_details.tag),
           });
         }
         return {
           id: cairo.felt(match.id),
           timestamp: Math.floor(match.details.fixture.timestamp / 1000),
           round: new CairoOption(CairoOptionVariant.Some, match.round),
-          home: new CairoCustomEnum({
-            Team: {
-              id: cairo.felt(match.details.teams.home.id),
-              goals: new CairoOption(CairoOptionVariant.None),
-            },
-          }),
-          away: new CairoCustomEnum({
-            Team: {
-              id: cairo.felt(match.details.teams.away.id),
-              goals: new CairoOption(CairoOptionVariant.None),
-            },
-          }),
+          home: {
+            id: cairo.felt(match.details.teams.home.id),
+            goals: new CairoOption(CairoOptionVariant.None),
+          },
+          away: {
+            id: cairo.felt(match.details.teams.away.id),
+            goals: new CairoOption(CairoOptionVariant.None),
+          },
           match_type: new CairoCustomEnum({ Virtual: {} }),
           odds,
         };
@@ -392,12 +392,6 @@ class MatchService {
       for (const roundMatches of grouped) {
         await register_matches(roundMatches);
       }
-
-      // const { account } = get_provider_and_account();
-
-      // const tx = await account.execute(grouped);
-
-      // await account.waitForTransaction(tx.transaction_hash);
     } catch (error) {
       throw error;
     }
@@ -529,14 +523,17 @@ class GameGenerator {
       home: {
         odd: getRandomOdd(),
         id: generateId(),
+        tag: "1",
       },
       away: {
         odd: getRandomOdd(),
         id: generateId(),
+        tag: "2",
       },
       draw: {
         odd: getRandomOdd(),
         id: generateId(),
+        tag: "x",
       },
     };
   }

@@ -34,6 +34,22 @@
   },
   {
     "type": "enum",
+    "name": "core::option::Option::<core::integer::u8>",
+    "variants": [
+      { "name": "Some", "type": "core::integer::u8" },
+      { "name": "None", "type": "()" }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "spl::mods::types::Team",
+    "members": [
+      { "name": "id", "type": "core::felt252" },
+      { "name": "goals", "type": "core::option::Option::<core::integer::u8>" }
+    ]
+  },
+  {
+    "type": "enum",
     "name": "core::option::Option::<core::integer::u256>",
     "variants": [
       { "name": "Some", "type": "core::integer::u256" },
@@ -49,29 +65,19 @@
     ]
   },
   {
-    "type": "enum",
-    "name": "core::option::Option::<core::felt252>",
-    "variants": [
-      { "name": "Some", "type": "core::felt252" },
-      { "name": "None", "type": "()" }
-    ]
-  },
-  {
     "type": "struct",
     "name": "spl::mods::types::Match",
     "members": [
       { "name": "inputed", "type": "core::bool" },
       { "name": "id", "type": "core::felt252" },
       { "name": "timestamp", "type": "core::integer::u64" },
+      { "name": "home", "type": "spl::mods::types::Team" },
+      { "name": "away", "type": "spl::mods::types::Team" },
       {
         "name": "round",
         "type": "core::option::Option::<core::integer::u256>"
       },
-      { "name": "match_type", "type": "spl::mods::types::MatchType" },
-      {
-        "name": "winner_odd",
-        "type": "core::option::Option::<core::felt252>"
-      }
+      { "name": "match_type", "type": "spl::mods::types::MatchType" }
     ]
   },
   {
@@ -87,7 +93,8 @@
     "name": "spl::mods::types::Odd",
     "members": [
       { "name": "id", "type": "core::felt252" },
-      { "name": "value", "type": "core::integer::u256" }
+      { "name": "value", "type": "core::integer::u256" },
+      { "name": "tag", "type": "core::felt252" }
     ]
   },
   {
@@ -104,7 +111,9 @@
       {
         "name": "odds",
         "type": "core::array::Array::<spl::mods::types::Odd>"
-      }
+      },
+      { "name": "home", "type": "spl::mods::types::Team" },
+      { "name": "away", "type": "spl::mods::types::Team" }
     ]
   },
   {
@@ -112,8 +121,18 @@
     "name": "spl::mods::types::Score",
     "members": [
       { "name": "inputed", "type": "core::bool" },
+      { "name": "home", "type": "core::integer::u8" },
+      { "name": "away", "type": "core::integer::u8" },
       { "name": "match_id", "type": "core::felt252" },
-      { "name": "winner_odd", "type": "core::felt252" }
+      { "name": "winner_odds", "type": "core::array::Array::<core::felt252>" }
+    ]
+  },
+  {
+    "type": "enum",
+    "name": "core::option::Option::<spl::mods::types::Odd>",
+    "variants": [
+      { "name": "Some", "type": "spl::mods::types::Odd" },
+      { "name": "None", "type": "()" }
     ]
   },
   {
@@ -137,11 +156,23 @@
     "name": "spl::mods::types::Prediction",
     "members": [
       { "name": "inputed", "type": "core::bool" },
+      {
+        "name": "odd",
+        "type": "core::option::Option::<spl::mods::types::Odd>"
+      },
       { "name": "stake", "type": "core::integer::u256" },
       {
         "name": "prediction_type",
         "type": "spl::mods::types::PredictionType"
       }
+    ]
+  },
+  {
+    "type": "struct",
+    "name": "spl::mods::types::UserPrediction",
+    "members": [
+      { "name": "match_", "type": "spl::mods::types::Match" },
+      { "name": "prediction", "type": "spl::mods::types::Prediction" }
     ]
   },
   {
@@ -153,6 +184,14 @@
         "name": "Multiple",
         "type": "core::array::Array::<spl::mods::types::PredictionVariants>"
       }
+    ]
+  },
+  {
+    "type": "enum",
+    "name": "core::option::Option::<core::felt252>",
+    "variants": [
+      { "name": "Some", "type": "core::felt252" },
+      { "name": "None", "type": "()" }
     ]
   },
   {
@@ -304,14 +343,13 @@
         "type": "function",
         "name": "get_user_predictions",
         "inputs": [
-          { "name": "round", "type": "core::integer::u256" },
           {
             "name": "user",
             "type": "core::starknet::contract_address::ContractAddress"
           }
         ],
         "outputs": [
-          { "type": "core::array::Array::<spl::mods::types::Prediction>" }
+          { "type": "core::array::Array::<spl::mods::types::UserPrediction>" }
         ],
         "state_mutability": "view"
       },
