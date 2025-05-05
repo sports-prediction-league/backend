@@ -144,11 +144,23 @@
     ]
   },
   {
+    "type": "struct",
+    "name": "spl::mods::types::MultiplePredictionVariants",
+    "members": [
+      { "name": "match_id", "type": "core::felt252" },
+      { "name": "pair_id", "type": "core::felt252" },
+      { "name": "odd", "type": "core::felt252" }
+    ]
+  },
+  {
     "type": "enum",
     "name": "spl::mods::types::PredictionType",
     "variants": [
       { "name": "Single", "type": "spl::mods::types::PredictionVariants" },
-      { "name": "Multiple", "type": "core::felt252" }
+      {
+        "name": "Multiple",
+        "type": "spl::mods::types::MultiplePredictionVariants"
+      }
     ]
   },
   {

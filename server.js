@@ -109,11 +109,13 @@ const initializeServer = async () => {
       console.log("Server initialization paused by environment variable");
       return;
     }
-
+    isRunning = true;
     console.log("Initializing matches...");
     await initializeMatches();
+    isRunning = false;
     console.log("Matches initialized successfully");
   } catch (error) {
+    isRunning = false;
     console.error("Failed to initialize matches:", error);
   }
 };
