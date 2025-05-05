@@ -4,8 +4,8 @@ const ABI = require("../../config/ABI.json");
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
 const get_provider_and_account = () => {
   const RPC_URL = process.env.RPC_URL;
-  const PRIVATE_KEY = process.env.PRIVATE_KEY;
-  const ACCOUNT_ADDRESS = process.env.ACCOUNT_ADDRESS;
+  const PRIVATE_KEY = process.env.ADMIN_CONTROL_PRIVATE_KEY;
+  const ACCOUNT_ADDRESS = process.env.ADMIN_CONTROL_ACCOUNT_ADDRESS;
 
   const provider = new RpcProvider({ nodeUrl: `${RPC_URL}` });
   const account = new Account(provider, ACCOUNT_ADDRESS, PRIVATE_KEY);

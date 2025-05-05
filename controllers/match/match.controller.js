@@ -85,7 +85,7 @@ class MatchService {
           matches: {
             virtual: matches.map((match) => ({
               ...match.toJSON(),
-              details: match.getDetails(match.date > now),
+              details: match.getDetails(Number(match.date) > now),
             })),
             live: [],
           },
@@ -145,7 +145,13 @@ class MatchService {
         console.log("SCORED MATCHES");
       }
 
-      return { newMatches, fetchLeaderboard: finishedMatches.length > 0 };
+      return {
+        newMatches: newMatches.map((mp) => ({
+          ...mp,
+          details: { ...mp.details, events: undefined, goals: undefined },
+        })),
+        fetchLeaderboard: finishedMatches.length > 0,
+      };
     } catch (error) {
       console.error("Error in checkAndScore:", error);
       throw error;
