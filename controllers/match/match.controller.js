@@ -111,7 +111,7 @@ class MatchService {
       const finishedMatches = await Match.findAll({
         where: {
           scored: false,
-          date: { [Op.lte]: pastTime },
+          date: { [Op.lt]: pastTime },
         },
       });
 
@@ -205,61 +205,65 @@ class MatchService {
    * @param {Array} finishedMatches - Array of finished matches
    */
   static async processFinishedMatches(finishedMatches) {
-    const scores = finishedMatches.map((match) => {
-      const matchDetails = match.getDetails(false);
+    try {
+      const scores = finishedMatches.map((match) => {
+        const matchDetails = match.getDetails(false);
 
-      let winner_odds = [];
-      if (Number(matchDetails.goals.home) > Number(matchDetails.goals.away)) {
-        winner_odds.push(cairo.felt(matchDetails.odds.home.id));
-      } else if (
-        Number(matchDetails.goals.home) < Number(matchDetails.goals.away)
-      ) {
-        winner_odds.push(cairo.felt(matchDetails.odds.away.id));
-      } else {
-        winner_odds.push(cairo.felt(matchDetails.odds.draw.id));
-      }
-      return {
-        match_id: cairo.felt(match.id),
-        inputed: true,
-        home: Number(matchDetails.goals.home),
-        away: Number(matchDetails.goals.away),
-        winner_odds,
-      };
-    });
+        let winner_odds = [];
+        if (Number(matchDetails.goals.home) > Number(matchDetails.goals.away)) {
+          winner_odds.push(cairo.felt(matchDetails.odds.home.id));
+        } else if (
+          Number(matchDetails.goals.home) < Number(matchDetails.goals.away)
+        ) {
+          winner_odds.push(cairo.felt(matchDetails.odds.away.id));
+        } else {
+          winner_odds.push(cairo.felt(matchDetails.odds.draw.id));
+        }
+        return {
+          match_id: cairo.felt(match.id),
+          inputed: true,
+          home: Number(matchDetails.goals.home),
+          away: Number(matchDetails.goals.away),
+          winner_odds,
+        };
+      });
 
-    console.log("Processing scores:", scores);
+      console.log("Processing scores:", scores);
 
-    // Register scores and rewards with contracts
-    await register_scores(scores);
+      // Register scores and rewards with contracts
+      await register_scores(scores);
 
-    // Remove processed matches
-    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000; // 1 day ago
-    // const matchUpdate = Match.update(
-    //   { scored: true },
-    //   {
-    //     where: {
-    //       id: {
-    //         [Op.in]: finishedMatches.map((match) => match.id),
-    //       },
-    //     },
-    //   }
-    // );
-    // const deleteMatch = Match.destroy({
-    //   where: {
-    //     date: {
-    //       [Op.lte]: oneDayAgo, // Matches 1 day or more old
-    //     },
-    //   },
-    // });
+      // Remove processed matches
+      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000; // 1 day ago
+      // const matchUpdate = Match.update(
+      //   { scored: true },
+      //   {
+      //     where: {
+      //       id: {
+      //         [Op.in]: finishedMatches.map((match) => match.id),
+      //       },
+      //     },
+      //   }
+      // );
+      // const deleteMatch = Match.destroy({
+      //   where: {
+      //     date: {
+      //       [Op.lte]: oneDayAgo, // Matches 1 day or more old
+      //     },
+      //   },
+      // });
 
-    await Match.destroy({
-      where: {
-        id: {
-          [Op.in]: finishedMatches.map((match) => match.id),
+      await Match.destroy({
+        where: {
+          id: {
+            [Op.in]: finishedMatches.map((match) => match.id),
+          },
         },
-      },
-    });
-
+      });
+    } catch (error) {
+      // console.log(error);
+      throw error;
+    }
     // await Promise.all([matchUpdate, deleteMatch]);
     // await Promise.all(
     //   finishedMatches.map((match) => match.update({ scored: true }))
