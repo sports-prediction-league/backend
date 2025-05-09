@@ -234,25 +234,33 @@ class MatchService {
 
     // Remove processed matches
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000; // 1 day ago
-    const matchUpdate = Match.update(
-      { scored: true },
-      {
-        where: {
-          id: {
-            [Op.in]: finishedMatches.map((match) => match.id),
-          },
-        },
-      }
-    );
-    const deleteMatch = Match.destroy({
+    // const matchUpdate = Match.update(
+    //   { scored: true },
+    //   {
+    //     where: {
+    //       id: {
+    //         [Op.in]: finishedMatches.map((match) => match.id),
+    //       },
+    //     },
+    //   }
+    // );
+    // const deleteMatch = Match.destroy({
+    //   where: {
+    //     date: {
+    //       [Op.lte]: oneDayAgo, // Matches 1 day or more old
+    //     },
+    //   },
+    // });
+
+    await Match.destroy({
       where: {
-        date: {
-          [Op.lte]: oneDayAgo, // Matches 1 day or more old
+        id: {
+          [Op.in]: finishedMatches.map((match) => match.id),
         },
       },
     });
 
-    await Promise.all([matchUpdate, deleteMatch]);
+    // await Promise.all([matchUpdate, deleteMatch]);
     // await Promise.all(
     //   finishedMatches.map((match) => match.update({ scored: true }))
     // );
