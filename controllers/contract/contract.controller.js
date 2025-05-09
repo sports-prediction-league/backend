@@ -91,6 +91,7 @@ function extractDecodedErrorReasons(errorMsg) {
     "ALREADY_EXIST",
     "INVALID_PARAMS",
     "INVALID_ADDRESS",
+    "ZERO_BALANCE",
   ];
 
   const decoded = hexMatches
