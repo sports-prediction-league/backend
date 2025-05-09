@@ -111,7 +111,7 @@ class MatchService {
       const finishedMatches = await Match.findAll({
         where: {
           scored: false,
-          date: { [Op.lte]: pastTime },
+          date: { [Op.lt]: pastTime },
         },
       });
 
