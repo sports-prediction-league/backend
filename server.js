@@ -99,6 +99,73 @@ const matchCheckTask = async () => {
   }
 };
 
+let isRunningOutsideCalls = false;
+
+// NEW CODE START - 1-second interval implementation
+/**
+ * Function to be executed every second
+ */
+const outsideExecutionTask = async () => {
+  if (isRunningOutsideCalls) {
+    console.log("Previous execution still running, skipping this iteration");
+    return;
+  }
+
+  const request = socket.getOlderRequest();
+  if (!request) {
+    // console.log("No calls for execution");
+    return;
+  }
+
+  isRunningOutsideCalls = true;
+  console.log(`OutsideExecution Task started at: ${new Date().toISOString()}`);
+  try {
+    // Skip if already running
+
+    const tx = await execute_contract_call(request.call.payload);
+
+    console.log(`Executed ${request}`, "\n\n\n\n\n\n\n\n\n");
+    console.log(`transaction`, tx);
+
+    socket.io
+      .to(request.socketId)
+      .emit("execution-response", { type: request.call.type, tx });
+    isRunningOutsideCalls = false;
+  } catch (error) {
+    socket.io.to(request.socketId).emit("execution-response", {
+      type: request.call.type,
+      tx: {
+        success: false,
+        message: "Internal server error",
+        data: {},
+      },
+    });
+
+    console.error("Error during OutsideExecution task:", error);
+    isRunningOutsideCalls = false;
+  } finally {
+    isRunningOutsideCalls = false;
+    console.log(
+      `OutsideExecution Task completed at: ${new Date().toISOString()}`
+    );
+  }
+};
+
+// Store the 1-second interval reference
+let outsideExecutionInterval = null;
+
+/**
+ * Start the 1-second interval
+ */
+const startOutsideExecutionInterval = () => {
+  if (outsideExecutionInterval) {
+    clearInterval(outsideExecutionInterval);
+  }
+  outsideExecutionInterval = setInterval(outsideExecutionTask, 500);
+  // console.log("One-second interval task started");
+};
+// NEW CODE END
+
 /**
  * Initialize server
  */
@@ -128,6 +195,12 @@ const cleanup = async () => {
 
   // Clear running task interval
   clearInterval(taskInterval);
+
+  // NEW: Clear the 1-second interval
+  if (outsideExecutionInterval) {
+    clearInterval(outsideExecutionInterval);
+    outsideExecutionInterval = null;
+  }
 
   // Close database connection
   await sequelize.close();
@@ -159,6 +232,9 @@ server.listen(PORT, async () => {
 
     // Initialize server components
     await initializeServer();
+
+    // NEW: Start the 1-second interval
+    startOutsideExecutionInterval();
 
     console.log(`Server running on port ${PORT}`);
   } catch (error) {

@@ -13,6 +13,17 @@ const get_provider_and_account = () => {
   return { provider, account };
 };
 
+const get_outside_execution_account = () => {
+  const RPC_URL = process.env.RPC_URL;
+  const PRIVATE_KEY = process.env.OUTSIDE_EXECUTION_PRIVATE_KEY;
+  const ACCOUNT_ADDRESS = process.env.OUTSIDE_EXECUTION_ACCOUNT_ADDRESS;
+
+  const provider = new RpcProvider({ nodeUrl: `${RPC_URL}` });
+  const account = new Account(provider, ACCOUNT_ADDRESS, PRIVATE_KEY);
+
+  return { provider, account };
+};
+
 const get_contract_instance = () => {
   const { account, provider } = get_provider_and_account();
   const contract = new Contract(ABI, CONTRACT_ADDRESS, provider);
@@ -80,6 +91,7 @@ function extractDecodedErrorReasons(errorMsg) {
     "ALREADY_EXIST",
     "INVALID_PARAMS",
     "INVALID_ADDRESS",
+    "ZERO_BALANCE",
   ];
 
   const decoded = hexMatches
@@ -122,7 +134,7 @@ const execute_contract_call = async (call) => {
       return { success: false, data: {}, message: "Invalid call" };
     }
 
-    const { account } = get_provider_and_account();
+    const { account } = get_outside_execution_account();
     const tx = await account.execute(call);
     await account.waitForTransaction(tx.transaction_hash);
     return { success: true, data: tx, message: "Transaction successful" };

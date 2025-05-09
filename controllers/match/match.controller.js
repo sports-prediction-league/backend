@@ -234,25 +234,33 @@ class MatchService {
 
     // Remove processed matches
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000; // 1 day ago
-    const matchUpdate = Match.update(
-      { scored: true },
-      {
-        where: {
-          id: {
-            [Op.in]: finishedMatches.map((match) => match.id),
-          },
-        },
-      }
-    );
-    const deleteMatch = Match.destroy({
+    // const matchUpdate = Match.update(
+    //   { scored: true },
+    //   {
+    //     where: {
+    //       id: {
+    //         [Op.in]: finishedMatches.map((match) => match.id),
+    //       },
+    //     },
+    //   }
+    // );
+    // const deleteMatch = Match.destroy({
+    //   where: {
+    //     date: {
+    //       [Op.lte]: oneDayAgo, // Matches 1 day or more old
+    //     },
+    //   },
+    // });
+
+    await Match.destroy({
       where: {
-        date: {
-          [Op.lte]: oneDayAgo, // Matches 1 day or more old
+        id: {
+          [Op.in]: finishedMatches.map((match) => match.id),
         },
       },
     });
 
-    await Promise.all([matchUpdate, deleteMatch]);
+    // await Promise.all([matchUpdate, deleteMatch]);
     // await Promise.all(
     //   finishedMatches.map((match) => match.update({ scored: true }))
     // );
@@ -461,62 +469,47 @@ class GameGenerator {
    * @returns {Object} Odds object
    */
   static calculatePredictionOdds() {
-    // Function heavily skewed toward generating values below 2.0
     const getRandomOdd = (min = MIN_ODD, max = MAX_ODD) => {
-      // Multiple approaches to ensure low values dominate
       const approach = Math.floor(Math.random() * 5);
       let value;
 
       switch (approach) {
         case 0:
-          // Exponential distribution - heavily weights toward minimum
           value = min + (max - min) * Math.pow(Math.random(), 4.5);
           break;
 
         case 1:
-          // Logistic function centered around 1.7
           const x = Math.random() * 6 - 3; // Range from -3 to 3
           const logistic = 1 / (1 + Math.exp(-x));
-          // Scale to be mostly below 2.0
           value = min + logistic * (2.2 - min);
           break;
 
         case 2:
-          // Direct manipulation - 85% chance of below 2.0
           if (Math.random() < 0.85) {
-            // Generate in range [min, 2.0)
             value = min + Math.random() * (2.0 - min);
           } else {
-            // Generate in range [2.0, max)
             value = 2.0 + Math.random() * (max - 2.0);
           }
           break;
 
         case 3:
-          // Square root transformation skewed toward low values
           const r = Math.random();
-          // Apply stronger transformation to further bias toward lower values
           value = min + Math.sqrt(r) * (2.0 - min) * 0.9;
           break;
 
         case 4:
-          // Beta-like distribution peaking around 1.3 to 1.8
           const u = Math.random();
           const v = Math.random();
-          // Beta(2,5)-like shape - peaks below 2.0 and falls off rapidly
           const beta = Math.pow(u, 1.5) * Math.pow(1 - v, 4);
           value = min + beta * (max - min) * 1.5;
-          // Extra clamp for outliers
           value = Math.min(value, max);
           break;
       }
 
-      // Extra safety bias - 25% chance to force below 2.0 if still high
       if (value >= 2.0 && Math.random() < 0.25) {
         value = min + Math.random() * (2.0 - min);
       }
 
-      // Random precision (1 or 2 decimal places)
       const precision = Math.random() > 0.5 ? 2 : 1;
       return parseFloat(value.toFixed(precision));
     };

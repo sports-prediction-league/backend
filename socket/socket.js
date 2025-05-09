@@ -5,7 +5,7 @@ const {
 
 class ServerSocket {
   /** Master list of all connected users */
-
+  requests = [];
   constructor(server) {
     ServerSocket.instance = this;
     this.io = new Server(server, {
@@ -21,12 +21,24 @@ class ServerSocket {
     this.io.on("connect", this.StartListeners);
   }
 
+  getOlderRequest() {
+    return this.requests.shift();
+  }
+
   StartListeners = (socket) => {
     console.info("Message received from " + socket.id);
 
     socket.on("match-events-request", async (ids) => {
       let matches = await getMatchesEventsByIds(ids);
       socket.emit("match-events-response", matches);
+    });
+
+    socket.on("make-outside-execution-call", async (request) => {
+      this.requests.push({
+        id: Math.random().toString(36).substring(2, 12),
+        socketId: socket.id,
+        call: request,
+      });
     });
     // socket.emit('me', socket.id)
     // socket.on("handshake", async ({ userId }) => {
