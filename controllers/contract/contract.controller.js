@@ -128,7 +128,13 @@ const execute_contract_call = async (call) => {
       return { success: false, data: {}, message: "Invalid call" };
     }
 
-    if (call.calldata[5] !== CallData.compile([CONTRACT_ADDRESS])[0]) {
+    if (
+      call.calldata[5] !== CallData.compile([CONTRACT_ADDRESS])[0] &&
+      call.calldata[5] !=
+        CallData.compile([
+          "0x006b1699541f3571cb27f3bd99768748eda96f7da11ca02bf32eeec11147e77e",
+        ])
+    ) {
       console.log("INVALID_CONTRACT_ADDRESS");
 
       return { success: false, data: {}, message: "Invalid call" };
