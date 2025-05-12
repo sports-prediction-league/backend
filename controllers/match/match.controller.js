@@ -831,7 +831,8 @@ class GameGenerator {
   static scheduleAllLeagues(leagues, now = Date.now(), round) {
     const allMatches = [];
     leagues.forEach((league, index) => {
-      const leagueStartTime = now + index * MINUTES_BETWEEN_LEAGUES * 60 * 1000;
+      const leagueStartTime =
+        now + (index + 1) * MINUTES_BETWEEN_LEAGUES * 60 * 1000;
       const leagueMatches = this.generateLeagueMatches(
         league,
         round,
