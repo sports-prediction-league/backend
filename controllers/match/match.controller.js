@@ -170,11 +170,12 @@ class MatchService {
       const currentRound = await get_current_round();
 
       for (let i = 0; i < 3 - diff; i++) {
-        const startTime = prepared.length
-          ? prepared[prepared.length - 1].date + 2 * 60 * 1000
-          : Number(lastMatch?.date) + 4 * 60 * 1000 < Date.now()
-          ? Date.now() + 4 * 60 * 1000
-          : Number(lastMatch?.date) + 4 * 60 * 1000;
+        const startTime =
+          prepared.length > 0
+            ? prepared[prepared.length - 1].date + 2 * 60 * 1000
+            : Number(lastMatch?.date ?? 0) + 4 * 60 * 1000 < Date.now()
+            ? Date.now() + 4 * 60 * 1000
+            : Number(lastMatch?.date) + 4 * 60 * 1000;
 
         const round = prepared.length
           ? prepared[prepared.length - 1].round + 1
